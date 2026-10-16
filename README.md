@@ -1,5 +1,8 @@
 # Showdown Desktop
 
+[![CI](https://github.com/chrismaghuhn/Showdown-godot/actions/workflows/ci.yml/badge.svg)](https://github.com/chrismaghuhn/Showdown-godot/actions/workflows/ci.yml)
+[![Build](https://github.com/chrismaghuhn/Showdown-godot/actions/workflows/build.yml/badge.svg)](https://github.com/chrismaghuhn/Showdown-godot/actions/workflows/build.yml)
+
 A community-built desktop client for [Pokémon Showdown](https://pokemonshowdown.com), made with Godot 4.
 Fully customizable, with plugin support.
 
@@ -31,6 +34,22 @@ tools/run_tests.sh     # unit tests (parser, battle state)
 tools/e2e_battle.sh    # two headless clients play a full battle on the local server
 ```
 
+Both run in GitHub Actions on every push and pull request ([ci.yml](.github/workflows/ci.yml)).
+The end-to-end test uses a pinned Showdown server commit (`PS_SERVER_REF`) and never touches the official servers.
+
+## Builds
+
+```bash
+tools/export.sh        # Linux, Windows and macOS builds into build/dist/
+```
+
+Needs the export templates for the exact Godot version (editor: *Editor → Manage Export Templates*).
+CI builds all three platforms on every push to `main` ([build.yml](.github/workflows/build.yml)) and
+attaches them as a workflow artifact. Pushing a tag like `v0.1.0` creates a **draft** GitHub release
+with the builds; review and publish it by hand.
+
+macOS builds are ad-hoc signed, not notarized: on first start, right-click the app → *Open*.
+
 ## Repository layout
 
 ```
@@ -47,7 +66,8 @@ client/            Godot project
   tests/           unit tests + headless runner
 plugins/           example and dev plugins
 docs/              architecture.md, plugin-api.md
-tools/             dev scripts (server, client, tests)
+tools/             dev scripts (server, client, tests, export)
+.github/           CI workflows and the setup-godot action
 ```
 
 See [docs/architecture.md](docs/architecture.md) for the layer rules and
