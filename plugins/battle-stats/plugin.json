@@ -1,0 +1,9 @@
+{
+  "id": "battle-stats",
+  "name": "Battle Stats",
+  "version": "0.1.0",
+  "api_version": 1,
+  "entry": "main.gd",
+  "description": "Example plugin: counts moves, KOs and turns of the current battle and shows them in the sidebar.",
+  "permissions": ["ui"]
+}

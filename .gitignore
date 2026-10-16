@@ -1,0 +1,13 @@
+# Godot
+client/.godot/
+client/export_presets.cfg.local
+*.translation
+
+# Builds
+/build/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

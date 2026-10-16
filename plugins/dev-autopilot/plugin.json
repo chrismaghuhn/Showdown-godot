@@ -1,0 +1,9 @@
+{
+  "id": "dev-autopilot",
+  "name": "Dev Autopilot",
+  "version": "0.1.0",
+  "api_version": 1,
+  "entry": "main.gd",
+  "description": "Development only: answers every battle request with a random legal choice. Used by tools/e2e_battle.sh.",
+  "permissions": ["send_commands"]
+}
