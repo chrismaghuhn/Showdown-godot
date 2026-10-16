@@ -32,6 +32,7 @@ To develop in the editor, open `client/project.godot` in Godot.
 ```bash
 tools/run_tests.sh     # unit tests (parser, battle state)
 tools/e2e_battle.sh    # two headless clients play a full battle on the local server
+tools/check_data.sh    # loads game data + sample sprites from the configured source
 ```
 
 Both run in GitHub Actions on every push and pull request ([ci.yml](.github/workflows/ci.yml)).
@@ -57,6 +58,7 @@ client/            Godot project
   src/
     app/           entry scene, dev automation
     protocol/      Showdown protocol parser (pure)
+    data/          Dex: species, moves, items, abilities, type chart (pure)
     model/         battle state (pure)
     net/           websocket + login
     core/          config, event bus, room routing (autoloads)
@@ -70,8 +72,9 @@ tools/             dev scripts (server, client, tests, export)
 .github/           CI workflows and the setup-godot action
 ```
 
-See [docs/architecture.md](docs/architecture.md) for the layer rules and
-[docs/plugin-api.md](docs/plugin-api.md) for writing plugins.
+See [docs/architecture.md](docs/architecture.md) for the layer rules,
+[docs/plugin-api.md](docs/plugin-api.md) for writing plugins and
+[docs/data-sources.md](docs/data-sources.md) for game data, caching and mirrors.
 
 ## License
 

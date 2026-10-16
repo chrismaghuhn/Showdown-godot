@@ -54,6 +54,7 @@ func _plugin_disable() -> void:
 | `battle_updated` | `battle: BattleState, msg: PSMessage` (state already updated) |
 | `battle_request` | `battle: BattleState, request: Dictionary` (the server's `|request|` JSON) |
 | `battle_ended` | `battle: BattleState, winner: String` |
+| `data_loaded` | `dex: Dex` (game data ready or updated) |
 
 ## Functions
 
@@ -62,6 +63,8 @@ func _plugin_disable() -> void:
 | `api.info(text)` | – |
 | `api.get_username()` | – |
 | `api.get_battle(room_id) -> BattleState` (read-only) | – |
+| `api.get_dex() -> Dex` (read-only, null until `data_loaded`) | – |
+| `await api.get_sprite(species, back, shiny) -> Texture2D` (cached, null if missing) | – |
 | `api.send_command(room_id, text)` | `send_commands` |
 | `api.choose(room_id, choice, rqid)` | `send_commands` |
 | `api.add_panel(slot, control)` – slots: `&"sidebar"` | `ui` |

@@ -8,9 +8,10 @@ This rule is what keeps the codebase from needing rewrites as features grow.
   │
  plugins/       plugin loader + the public PluginAPI
  core/          app services: config, event bus, room routing
- net/           websocket connection, login
+ net/           websocket connection, login, HTTP cache
   │
  model/         battle state (pure data, no Nodes, no autoloads)
+ data/          Dex: species, moves, items, abilities, type chart (pure)
   │
  protocol/      parser for the Showdown text protocol (pure, static)
 ```
@@ -18,9 +19,10 @@ This rule is what keeps the codebase from needing rewrites as features grow.
 | Folder (`client/src/…`) | Contains | May use |
 |---|---|---|
 | `protocol/` | `PSParser`, `PSMessage` | nothing |
-| `model/` | `BattleState`, `BattleSide`, `BattlePokemon` | `protocol/` |
-| `net/` | `Connection` (autoload), `LoginClient` | `protocol/`, `core/` |
-| `core/` | `AppConfig`, `EventBus`, `Rooms` (autoloads) | `protocol/`, `model/`, `net/` |
+| `data/` | `Dex`, `DexSpecies`, `DexMove`, `DexEntry`, `JsObjectParser` | `protocol/` |
+| `model/` | `BattleState`, `BattleSide`, `BattlePokemon` | `protocol/`, `data/` |
+| `net/` | `Connection` (autoload), `LoginClient`, `HttpCache` | `protocol/`, `core/` |
+| `core/` | `AppConfig`, `EventBus`, `Rooms`, `GameData` (autoloads) | `protocol/`, `data/`, `model/`, `net/` |
 | `plugins/` | `Plugins` (autoload), `PluginAPI`, `PluginManifest`, `ClientPlugin` | everything below |
 | `ui/` | `screens/<name>/`, `components/` | everything below, **only via EventBus / public methods** |
 | `app/` | entry scene, wiring, dev automation | everything |
@@ -44,7 +46,8 @@ from the protocol and offers the choices the server lists in `|request|`.
 | Real battle screen | `ui/screens/battle/` (reads `BattleState`, listens to battle events) |
 | Lobby, chat rooms | `ui/screens/lobby/`, chat model in `model/` if it needs state |
 | Teambuilder | `model/team/` (team format, import/export, pure + tested) and `ui/screens/teambuilder/` |
-| Pokédex / move data | `data/` layer below `model/`, cached in `user://cache/` |
+| Pokédex / move data | done: `data/` + `GameData`, see [data-sources.md](data-sources.md) |
+| Move/item descriptions, icons | extend `GameData.DATA_FILES` / sprite helpers, parse in `data/` |
 | Replays | feed a replay log through `PSParser` into a `BattleState` – no new parsing code |
 | Themes, fonts | `client/assets/themes/`, `client/assets/fonts/` |
 | Plugin sandbox (Lua/WASM) | new loader in `plugins/`, same `PluginAPI` surface |
