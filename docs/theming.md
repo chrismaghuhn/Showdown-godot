@@ -86,11 +86,25 @@ Screens and components never hard-code colors. They pick a **theme type variatio
 | `SecondaryLabel`, `MutedLabel`, `CapsLabel`, `HeadingLabel`, `TitleLabel`, `DisplayLabel`, `MonoLabel`, `MonoSmallLabel`, `DangerLabel`, `SuccessLabel`, `WarningLabel`, `PluginLabel` | Label | Typography |
 | `TypeBadge_<type>`, `StatusBadge_<code>`, `BoostUpChip`, `BoostDownChip`, `VolatileChip`, `FieldChip`, `PluginBadge`, `KbdLabel` | Label | Badges and chips (prefer the components) |
 
-Components in `src/ui/components/`: `HPBar`, `TypeBadge`, `StatusBadge`, `BoostChip`, `MoveButton`.
+Components in `src/ui/components/`: `HPBar`, `TypeBadge`, `StatusBadge`, `BoostChip`, `MoveButton`, `IconView`.
 For custom drawing, read a token: `Themes.color("color.hp.high")` (plugins: `api.get_token(key)`).
 
 Keep a Control (or Window) chain from the root to every screen: Godot passes the theme down only
 through Control/Window parents.
+
+## Icons
+
+37 hand-drawn icons from the design system in `client/assets/icons/` (free to use in this
+project; no third-party icon set): `weather-*`, `terrain-*`, `hazard-*`, `screen-*` for field
+conditions and `ui-*` for the interface.
+
+- 16px grid, 1.5px stroke, drawn **white** so the theme can tint them.
+- Imported at 2x (`svg/scale=2.0` in the `.import` files) and shown at 16 logical px, so they stay
+  sharp up to 200 % UI scale. Keep that setting when adding icons.
+- In buttons: `button.icon = Icons.get_icon("ui-import")`; the theme's icon colors tint it.
+- Elsewhere: `IconView.new("weather-rain", "color.text.secondary")` (tinted by a token).
+- Design rule: every icon is paired with a text label or a tooltip, never color alone.
+- `LineEdit.right_icon` draws icons untinted at texture size; don't use it with these icons.
 
 ## Switching and scaling
 

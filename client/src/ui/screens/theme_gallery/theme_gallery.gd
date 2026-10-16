@@ -80,6 +80,7 @@ func _build() -> void:
 	_buttons_section(left)
 	_inputs_section(left)
 	_typography_section(left)
+	_icons_section(left)
 	_moves_section(right)
 	_badges_section(right)
 	_hp_section(right)
@@ -125,11 +126,13 @@ func _buttons_section(parent: Control) -> void:
 	for disabled in [false, true]:
 		var row := HFlowContainer.new()
 		box.add_child(row)
-		for spec: Array in [["Battle!", &"PrimaryButton"], ["Import", &""], ["Cancel", &"GhostButton"],
-				["Forfeit", &"DangerButton"], ["Small", &"SmallButton"], ["⚙", &"IconButton"]]:
+		for spec: Array in [["Battle!", &"PrimaryButton", ""], ["Import", &"", "ui-import"], ["Cancel", &"GhostButton", ""],
+				["Forfeit", &"DangerButton", "ui-forfeit"], ["Small", &"SmallButton", ""], ["", &"IconButton", "ui-settings"]]:
 			var button := _button(spec[0], spec[1])
+			if not str(spec[2]).is_empty():
+				button.icon = Icons.get_icon(spec[2])
 			button.disabled = disabled
-			button.tooltip_text = "Tooltip: %s button" % spec[0]
+			button.tooltip_text = "Settings" if str(spec[0]).is_empty() else "Tooltip: %s button" % spec[0]
 			row.add_child(button)
 		var kbd := _label("Ctrl+K", &"KbdLabel")
 		kbd.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -174,6 +177,19 @@ func _typography_section(parent: Control) -> void:
 			["bench-hp 1.4.0 · community plugin", &"PluginLabel"]]:
 		var label := _label(spec[0], spec[1], spec[1] == &"CapsLabel")
 		box.add_child(label)
+
+
+func _icons_section(parent: Control) -> void:
+	var box := _section(parent, "Icons", "Hand-drawn, 16px grid, 1.5px stroke, tinted by the theme. Always paired with a label or tooltip.")
+	var grid := GridContainer.new()
+	grid.columns = 3
+	box.add_child(grid)
+	for icon_name in Icons.names():
+		var row := HBoxContainer.new()
+		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(IconView.new(icon_name, "color.text.primary"))
+		row.add_child(_label(icon_name, &"MutedLabel"))
+		grid.add_child(row)
 
 
 func _moves_section(parent: Control) -> void:
