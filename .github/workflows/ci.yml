@@ -56,7 +56,8 @@ jobs:
       - name: Start server
         run: |
           tools/local_server.sh > server.log 2>&1 &
-          timeout 180 bash -c 'until (echo > /dev/tcp/127.0.0.1/8000) 2>/dev/null; do sleep 2; done'
+          timeout 180 bash -c 'until (echo > /dev/tcp/127.0.0.1/8000) 2>/dev/null; do sleep 2; done' \
+            || { echo "Server did not start:"; cat server.log; exit 1; }
 
       - uses: ./.github/actions/setup-godot
         with:

@@ -6,6 +6,7 @@
 # Usage: tools/export.sh [version]   (default: config/version from project.godot)
 set -euo pipefail
 source "$(dirname "$0")/common.sh"
+require_godot
 
 VERSION="${1:-$(sed -n 's/^config\/version="\(.*\)"/\1/p' "$CLIENT_DIR/project.godot")}"
 BUILD="$REPO_ROOT/build"

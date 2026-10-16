@@ -3,6 +3,7 @@
 # search a random battle, play it with the dev-autopilot plugin and exit when it ends.
 set -euo pipefail
 source "$(dirname "$0")/common.sh"
+require_godot
 
 FORMAT="${1:-gen9randombattle}"
 LOG_DIR="$(mktemp -d)"
