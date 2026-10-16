@@ -3,10 +3,11 @@ extends Control
 ## (connect, login, search, battle, plugins). The real UI will live in its own
 ## screens under src/ui/screens/ and reuse the same events.
 
-const COLOR_SYSTEM := Color(0.6, 0.7, 1.0)
-const COLOR_ERROR := Color(1.0, 0.45, 0.45)
-const COLOR_CHAT := Color(0.85, 0.85, 0.85)
-const COLOR_RAW := Color(0.5, 0.5, 0.5)
+# Log line colors are theme tokens, resolved when the line is printed.
+const COLOR_SYSTEM := "color.text.secondary"
+const COLOR_ERROR := "color.danger.text"
+const COLOR_CHAT := "color.text.primary"
+const COLOR_RAW := "color.text.muted"
 
 var _server_select: OptionButton
 var _name_edit: LineEdit
@@ -52,6 +53,10 @@ func _ready() -> void:
 # --- UI construction ------------------------------------------------------------
 
 func _build_ui() -> void:
+	var background := PanelContainer.new()
+	background.theme_type_variation = &"AppBackground"
+	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(background)
 	var margin := MarginContainer.new()
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	for side in ["left", "right", "top", "bottom"]:
@@ -76,6 +81,11 @@ func _build_ui() -> void:
 	_connect_button = Button.new()
 	_connect_button.pressed.connect(_on_connect_pressed)
 	top.add_child(_connect_button)
+	var gallery := Button.new()
+	gallery.text = tr("Theme gallery")
+	gallery.theme_type_variation = &"GhostButton"
+	gallery.pressed.connect(func() -> void: EventBus.navigation_requested.emit(&"theme-gallery"))
+	top.add_child(gallery)
 	_status = Label.new()
 	_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -157,13 +167,13 @@ func _button(text: String, callback: Callable) -> Button:
 func _header(text: String) -> Label:
 	var label := Label.new()
 	label.text = text
-	label.add_theme_font_size_override("font_size", 18)
+	label.theme_type_variation = &"TitleLabel"
 	return label
 
 
 ## Plain text only - server/user text is never parsed as BBCode.
-func _print_line(text: String, color := Color.WHITE) -> void:
-	_log.push_color(color)
+func _print_line(text: String, color_token := "color.text.primary") -> void:
+	_log.push_color(Themes.color(color_token))
 	_log.add_text(text)
 	_log.pop()
 	_log.newline()

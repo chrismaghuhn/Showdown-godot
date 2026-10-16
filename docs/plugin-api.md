@@ -55,6 +55,7 @@ func _plugin_disable() -> void:
 | `battle_request` | `battle: BattleState, request: Dictionary` (the server's `|request|` JSON) |
 | `battle_ended` | `battle: BattleState, winner: String` |
 | `data_loaded` | `dex: Dex` (game data ready or updated) |
+| `theme_changed` | `theme_id: String` (redraw custom-drawn UI) |
 
 ## Functions
 
@@ -65,10 +66,18 @@ func _plugin_disable() -> void:
 | `api.get_battle(room_id) -> BattleState` (read-only) | – |
 | `api.get_dex() -> Dex` (read-only, null until `data_loaded`) | – |
 | `await api.get_sprite(species, back, shiny) -> Texture2D` (cached, null if missing) | – |
+| `api.get_token(key) -> Variant` (design token of the current theme, e.g. `"color.hp.high"`) | – |
 | `api.send_command(room_id, text)` | `send_commands` |
 | `api.choose(room_id, choice, rqid)` | `send_commands` |
 | `api.add_panel(slot, control)` – slots: `&"sidebar"` | `ui` |
 | `api.get_data_dir() -> String` (private `user://plugin_data/<id>/`) | `storage` |
+
+## Look and feel
+
+Panels added with `add_panel()` inherit the current theme automatically. Use the standard theme
+type variations (see [theming.md](theming.md)) and `api.get_token()` for custom drawing — never
+hard-coded colors. The host draws the plugin badge and source line; a plugin cannot hide where
+its UI comes from.
 
 ## Installing and developing
 

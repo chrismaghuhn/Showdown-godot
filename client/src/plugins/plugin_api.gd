@@ -26,6 +26,7 @@ const EVENTS: Array[StringName] = [
 	&"battle_request",
 	&"battle_ended",
 	&"data_loaded",
+	&"theme_changed",
 ]
 
 var manifest: PluginManifest
@@ -74,6 +75,12 @@ func get_dex() -> Dex:
 ## Loads a sprite texture (cached). Must be awaited: `var tex = await api.get_sprite("Garchomp")`.
 func get_sprite(species: String, back := false, shiny := false) -> Texture2D:
 	return await GameData.get_sprite(species, back, shiny)
+
+
+## A design token of the current theme, e.g. api.get_token("color.hp.high") -> Color.
+## Plugin UI added via add_panel() is themed automatically; use this for custom drawing.
+func get_token(key: String) -> Variant:
+	return Themes.tokens.values.get(key) if Themes.tokens != null else null
 
 
 # --- "send_commands" permission ----------------------------------------------

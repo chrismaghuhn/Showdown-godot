@@ -29,5 +29,11 @@ signal battle_ended(battle: BattleState, winner: String)
 signal data_loaded(dex: Dex)
 signal data_failed(reason: String)
 
+# Appearance and navigation
+signal theme_changed(theme_id: String)
+signal ui_scale_changed(scale: float)
+## Asks the app to show a screen, e.g. &"dev-console" or &"theme-gallery".
+signal navigation_requested(screen: StringName)
+
 # Plugins
 signal plugin_panel_added(plugin_id: String, slot: StringName, control: Control)
