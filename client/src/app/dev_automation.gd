@@ -5,6 +5,7 @@ extends Node
 ##   godot --path client --headless -- --server=local --name=BotA \
 ##       --search=gen9randombattle --quit-after-battle --timeout=300
 ##   godot --path client --headless -- --check-data [--data-url=...] [--sprite-url=...]
+##   godot --path client -- --screen=theme-gallery --theme=classic-light --screenshot=/tmp/shot.png
 
 var _searched := false
 
@@ -12,6 +13,9 @@ var _searched := false
 func _ready() -> void:
 	if AppConfig.has_cli("check-data"):
 		_check_data()
+		return
+	if AppConfig.has_cli("screenshot"):
+		_screenshot(AppConfig.cli("screenshot"))
 		return
 	if not AppConfig.has_cli("server"):
 		queue_free()
@@ -66,6 +70,16 @@ func _check_data() -> void:
 		_log("sprite %s (back=%s, shiny=%s): %s" % [sprite[0], sprite[1], sprite[2],
 			"missing" if texture == null else "%dx%d" % [texture.get_width(), texture.get_height()]])
 	_finish(1 if missing > 0 else 0, "data check " + ("failed" if missing > 0 else "ok"))
+
+
+## Waits until the UI has laid out and rendered, then saves the window as PNG and quits.
+func _screenshot(path: String) -> void:
+	for i in 20:
+		await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	var image := get_viewport().get_texture().get_image()
+	var err := image.save_png(path)
+	_finish(0 if err == OK else 1, "screenshot %s (%dx%d): %s" % [path, image.get_width(), image.get_height(), error_string(err)])
 
 
 func _finish(code: int, reason: String) -> void:

@@ -24,6 +24,7 @@ EventBus="*res://src/core/event_bus.gd"
 Connection="*res://src/net/connection.gd"
 Rooms="*res://src/core/room_manager.gd"
 GameData="*res://src/core/game_data.gd"
+Themes="*res://src/ui/theme/theme_manager.gd"
 Plugins="*res://src/plugins/plugin_manager.gd"
 
 [display]

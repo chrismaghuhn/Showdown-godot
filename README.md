@@ -80,7 +80,7 @@ client/            Godot project
     core/          config, event bus, room routing (autoloads)
     plugins/       plugin loader and public plugin API
     ui/            screens and components
-  assets/          themes, fonts (own assets only)
+  assets/          themes (design tokens), fonts (Atkinson Hyperlegible, OFL)
   tests/           unit tests + headless runner
 plugins/           example and dev plugins
 docs/              architecture.md, plugin-api.md
@@ -88,9 +88,14 @@ tools/             dev scripts (server, client, tests, export)
 .github/           CI workflows and the setup-godot action
 ```
 
+Themes: three built-in themes (Midnight Dark, Classic Light, High Contrast), community themes as
+token-only JSON files, runtime switching and UI scaling. Open the **theme gallery** from the dev
+console or with `tools/run_client.sh --screen=theme-gallery`.
+
 See [docs/architecture.md](docs/architecture.md) for the layer rules,
 [docs/plugin-api.md](docs/plugin-api.md) for writing plugins and
-[docs/data-sources.md](docs/data-sources.md) for game data, caching and mirrors.
+[docs/data-sources.md](docs/data-sources.md) for game data, caching and mirrors and
+[docs/theming.md](docs/theming.md) for themes and design tokens.
 
 ## License
 

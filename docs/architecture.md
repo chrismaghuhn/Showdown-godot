@@ -24,7 +24,7 @@ This rule is what keeps the codebase from needing rewrites as features grow.
 | `net/` | `Connection` (autoload), `LoginClient`, `HttpCache` | `protocol/`, `core/` |
 | `core/` | `AppConfig`, `EventBus`, `Rooms`, `GameData` (autoloads) | `protocol/`, `data/`, `model/`, `net/` |
 | `plugins/` | `Plugins` (autoload), `PluginAPI`, `PluginManifest`, `ClientPlugin` | everything below |
-| `ui/` | `screens/<name>/`, `components/` | everything below, **only via EventBus / public methods** |
+| `ui/` | `screens/<name>/`, `components/`, `theme/` (`Themes` autoload, `ThemeTokens`, `ThemeBuilder`) | everything below, **only via EventBus / public methods** |
 | `app/` | entry scene, wiring, dev automation | everything |
 
 ## Data flow
@@ -49,12 +49,13 @@ from the protocol and offers the choices the server lists in `|request|`.
 | Pokédex / move data | done: `data/` + `GameData`, see [data-sources.md](data-sources.md) |
 | Move/item descriptions, icons | extend `GameData.DATA_FILES` / sprite helpers, parse in `data/` |
 | Replays | feed a replay log through `PSParser` into a `BattleState` – no new parsing code |
-| Themes, fonts | `client/assets/themes/`, `client/assets/fonts/` |
+| Themes, fonts | done: tokens in `client/assets/themes/`, fonts in `client/assets/fonts/`, see [theming.md](theming.md) |
 | Plugin sandbox (Lua/WASM) | new loader in `plugins/`, same `PluginAPI` surface |
 
 ## Conventions
 
 - Code, comments and identifiers in English; user-facing strings go through `tr()`.
+- No hard-coded colors or font sizes in screens: use theme type variations or `Themes.color(token)`.
 - Pure logic (`protocol/`, `model/`) gets unit tests in `client/tests/unit/`.
 - Autoloads are internal. Plugins only see `PluginAPI`.
 - Never commit Nintendo/Game Freak assets (sprites, sounds). Load them at runtime from the
