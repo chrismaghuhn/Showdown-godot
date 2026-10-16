@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: "4.7.2"
+  # Showdown server commit the end-to-end test runs against. Bump deliberately
+  # to catch protocol changes without making CI flaky.
+  PS_SERVER_REF: 4f113a6c4a75784473591c1802059b8f76d51a56
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup-godot
+        with:
+          version: ${{ env.GODOT_VERSION }}
+      - name: Unit tests
+        run: tools/run_tests.sh
+
+  e2e-battle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PS_SERVER_DIR: ${{ github.workspace }}/.ps-server
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Checkout Showdown server
+        uses: actions/checkout@v5
+        with:
+          repository: smogon/pokemon-showdown
+          ref: ${{ env.PS_SERVER_REF }}
+          path: .ps-server
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: .ps-server/package-lock.json
+
+      - name: Install server
+        working-directory: .ps-server
+        run: npm ci --no-audit --no-fund
+
+      - name: Start server
+        run: |
+          tools/local_server.sh > server.log 2>&1 &
+          timeout 180 bash -c 'until (echo > /dev/tcp/127.0.0.1/8000) 2>/dev/null; do sleep 2; done' \
+            || { echo "Server did not start:"; cat server.log; exit 1; }
+
+      - uses: ./.github/actions/setup-godot
+        with:
+          version: ${{ env.GODOT_VERSION }}
+
+      - name: Two clients play a random battle
+        run: tools/e2e_battle.sh gen9randombattle
+
+      - name: Upload server log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-server-log
+          path: server.log

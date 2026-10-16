@@ -1,0 +1,56 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    paths:
+      - client/export_presets.cfg
+      - client/project.godot
+      - tools/export.sh
+      - .github/**
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: "4.7.2"
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: ./.github/actions/setup-godot
+        with:
+          version: ${{ env.GODOT_VERSION }}
+          templates: "true"
+
+      - name: Export Linux, Windows and macOS
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            tools/export.sh "${GITHUB_REF_NAME#v}"
+          else
+            tools/export.sh "dev-${GITHUB_SHA::7}"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: showdown-desktop-builds
+          path: build/dist/*
+          if-no-files-found: error
+
+      # Tags like v0.1.0 create a *draft* release with the builds attached.
+      # Review and publish it manually on GitHub.
+      - name: Draft release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" build/dist/* --draft --generate-notes --title "$GITHUB_REF_NAME"
