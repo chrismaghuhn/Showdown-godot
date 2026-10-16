@@ -53,6 +53,11 @@ tools/             dev scripts (server, client, tests)
 See [docs/architecture.md](docs/architecture.md) for the layer rules and
 [docs/plugin-api.md](docs/plugin-api.md) for writing plugins.
 
+## License
+
+[MIT](LICENSE). Note: the official Pokémon Showdown *client* is AGPL-licensed, so do not copy code from it
+into this repository. The Showdown *server* and its protocol docs are MIT.
+
 ## Legal
 
 Pokémon and all related names and assets are © Nintendo / Game Freak / The Pokémon Company.
