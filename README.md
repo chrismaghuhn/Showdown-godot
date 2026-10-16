@@ -3,11 +3,27 @@
 [![CI](https://github.com/chrismaghuhn/Showdown-godot/actions/workflows/ci.yml/badge.svg)](https://github.com/chrismaghuhn/Showdown-godot/actions/workflows/ci.yml)
 [![Build](https://github.com/chrismaghuhn/Showdown-godot/actions/workflows/build.yml/badge.svg)](https://github.com/chrismaghuhn/Showdown-godot/actions/workflows/build.yml)
 
-A community-built desktop client for [Pokémon Showdown](https://pokemonshowdown.com), made with Godot 4.
-Fully customizable, with plugin support.
+A **native**, **fully customizable** desktop client for [Pokémon Showdown](https://pokemonshowdown.com),
+built on an **open plugin platform**. Made with Godot 4, by and for the community.
 
-> Status: early skeleton. Connecting, logging in, random battles and plugins work through a developer console.
-> The real UI is not built yet.
+> Status: early skeleton. Connecting, logging in, random battles, game data and plugins work through a
+> developer console. The real UI is not built yet.
+
+## Why another client?
+
+Most desktop options wrap the official web client in a browser shell. That is fast to build, but the
+look can only be re-skinned and every upstream change can break add-ons. Showdown Desktop takes the
+other route:
+
+- **Native client.** Its own UI talks to the Showdown server protocol directly. It does not depend on the web client's code or page structure.
+- **Fully customizable.** Every color, font and spacing value comes from design tokens. Community themes, per-area themes and UI scaling are core features, not CSS overrides.
+- **Open plugin platform.** A documented, versioned [plugin API](docs/plugin-api.md) with typed access to battles, game data and UI slots, so anyone can build add-ons that survive updates.
+- **Desktop first.** Local team storage with backups, native notifications, offline-cached game data, keyboard-driven workflows.
+- **Open source, MIT.**
+
+Planned features are tracked as [issues](https://github.com/chrismaghuhn/Showdown-godot/issues) and
+[milestones](https://github.com/chrismaghuhn/Showdown-godot/milestones). Many come straight from
+community wishes (label `community-wish`).
 
 ## Quick start
 
