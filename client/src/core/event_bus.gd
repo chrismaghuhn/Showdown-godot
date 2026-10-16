@@ -25,5 +25,9 @@ signal battle_updated(battle: BattleState, msg: PSMessage)
 signal battle_request(battle: BattleState, request: Dictionary)
 signal battle_ended(battle: BattleState, winner: String)
 
+# Game data
+signal data_loaded(dex: Dex)
+signal data_failed(reason: String)
+
 # Plugins
 signal plugin_panel_added(plugin_id: String, slot: StringName, control: Control)

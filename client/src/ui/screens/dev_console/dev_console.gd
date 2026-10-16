@@ -17,6 +17,10 @@ var _log: RichTextLabel
 var _raw_toggle: CheckBox
 var _format_edit: LineEdit
 var _battle_info: Label
+var _sprite_row: HBoxContainer
+## side id -> TextureRect, and the species currently shown there
+var _sprites := {}
+var _sprite_keys := {}
 var _actions: VBoxContainer
 var _plugin_slot: VBoxContainer
 var _command_edit: LineEdit
@@ -36,6 +40,10 @@ func _ready() -> void:
 	EventBus.battle_updated.connect(_on_battle_updated)
 	EventBus.battle_request.connect(_on_battle_request)
 	EventBus.plugin_panel_added.connect(_on_plugin_panel_added)
+	EventBus.data_loaded.connect(_on_data_loaded)
+	EventBus.data_failed.connect(func(r: String) -> void: _print_line(tr("Game data: %s") % r, COLOR_ERROR))
+	if GameData.dex != null:
+		_on_data_loaded(GameData.dex)
 	for control in Plugins.get_panels(&"sidebar"):
 		_plugin_slot.add_child(control)
 	_on_connection_state_changed(Connection.state)
@@ -100,6 +108,8 @@ func _build_ui() -> void:
 	search_row.add_child(_format_edit)
 	search_row.add_child(_button(tr("Search"), _on_search_pressed))
 	search_row.add_child(_button(tr("Cancel"), func() -> void: Connection.send("", "/cancelsearch")))
+	_sprite_row = HBoxContainer.new()
+	sidebar.add_child(_sprite_row)
 	_battle_info = Label.new()
 	_battle_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	sidebar.add_child(_battle_info)
@@ -212,6 +222,10 @@ func _on_chat_message(room_id: String, user: String, text: String) -> void:
 		_print_line("%s: %s" % [user, text], COLOR_CHAT)
 
 
+func _on_data_loaded(dex: Dex) -> void:
+	_print_line(tr("Game data ready: %d species, %d moves") % [dex.species.size(), dex.moves.size()], COLOR_SYSTEM)
+
+
 func _on_plugin_panel_added(_plugin_id: String, slot: StringName, control: Control) -> void:
 	if slot == &"sidebar":
 		_plugin_slot.add_child(control)
@@ -222,6 +236,10 @@ func _on_plugin_panel_added(_plugin_id: String, slot: StringName, control: Contr
 func _on_battle_started(battle: BattleState) -> void:
 	_current_battle = battle.room_id
 	_print_line(tr("Battle started: %s") % battle.room_id, COLOR_SYSTEM)
+	for child in _sprite_row.get_children():
+		child.queue_free()
+	_sprites.clear()
+	_sprite_keys.clear()
 	_update_battle_info(battle)
 
 
@@ -251,6 +269,34 @@ func _update_battle_info(battle: BattleState) -> void:
 	if not battle.weather.is_empty():
 		lines.append(tr("Weather: %s") % battle.weather)
 	_battle_info.text = "\n".join(lines)
+	_update_sprites(battle)
+
+
+func _update_sprites(battle: BattleState) -> void:
+	for side_id: String in battle.sides:
+		var mon := battle.side(side_id).active_pokemon()
+		var key := "" if mon == null else "%s|%s" % [mon.species, mon.shiny]
+		if _sprite_keys.get(side_id, null) == key:
+			continue
+		_sprite_keys[side_id] = key
+		if not _sprites.has(side_id):
+			var new_rect := TextureRect.new()
+			new_rect.custom_minimum_size = Vector2(96, 96)
+			new_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			new_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			_sprite_row.add_child(new_rect)
+			_sprites[side_id] = new_rect
+		var rect: TextureRect = _sprites[side_id]
+		rect.texture = null
+		if mon != null:
+			_load_sprite(rect, side_id, key, mon.species, side_id == battle.my_side, mon.shiny)
+
+
+func _load_sprite(rect: TextureRect, side_id: String, key: String, species: String, back: bool, shiny: bool) -> void:
+	var texture := await GameData.get_sprite(species, back, shiny)
+	# Only apply if that side still shows the same Pokémon.
+	if is_instance_valid(rect) and _sprite_keys.get(side_id, null) == key:
+		rect.texture = texture
 
 
 func _on_battle_request(battle: BattleState, request: Dictionary) -> void:
@@ -272,8 +318,7 @@ func _on_battle_request(battle: BattleState, request: Dictionary) -> void:
 		var moves: Array = slot.get("moves", [])
 		for i in moves.size():
 			var move: Dictionary = moves[i]
-			var button := _add_action("%s (%s/%s)" % [move.get("move", "?"), move.get("pp", "?"), move.get("maxpp", "?")],
-				battle.room_id, "move %d" % (i + 1), rqid)
+			var button := _add_action(_move_label(move, battle), battle.room_id, "move %d" % (i + 1), rqid)
 			button.disabled = move.get("disabled", false) or int(move.get("pp", 1)) <= 0
 
 	if trapped:
@@ -286,6 +331,35 @@ func _on_battle_request(battle: BattleState, request: Dictionary) -> void:
 			continue
 		_add_action(tr("Switch to %s (%s)") % [str(mon.get("details", "")).get_slice(",", 0), condition],
 			battle.room_id, "switch %d" % (i + 1), rqid)
+
+
+## "Earthquake (10/10)  ·  Ground Physical 100 BP  ×2" - type info and effectiveness need GameData.
+func _move_label(move: Dictionary, battle: BattleState) -> String:
+	var text := "%s (%s/%s)" % [move.get("move", "?"), move.get("pp", "?"), move.get("maxpp", "?")]
+	var dex := GameData.dex
+	if dex == null:
+		return text
+	var data := dex.get_move(str(move.get("id", move.get("move", ""))))
+	if data == null:
+		return text
+	text += "  ·  %s %s" % [data.type, data.category]
+	if data.base_power > 0:
+		text += " %d BP" % data.base_power
+	var target := _opponent_species(battle)
+	if target != null and data.category != "Status":
+		var multiplier := dex.effectiveness(data.type, target.types)
+		if multiplier != 1.0:
+			text += "  ×" + String.num(multiplier)
+	return text
+
+
+func _opponent_species(battle: BattleState) -> DexSpecies:
+	for side_id: String in battle.sides:
+		if side_id != battle.my_side:
+			var mon := battle.side(side_id).active_pokemon()
+			if mon != null:
+				return GameData.dex.get_species(mon.species)
+	return null
 
 
 func _add_action(text: String, room_id: String, choice: String, rqid: int) -> Button:

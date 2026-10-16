@@ -25,6 +25,7 @@ const EVENTS: Array[StringName] = [
 	&"battle_updated",
 	&"battle_request",
 	&"battle_ended",
+	&"data_loaded",
 ]
 
 var manifest: PluginManifest
@@ -62,6 +63,17 @@ func get_username() -> String:
 ## Returns the BattleState for a room. Treat it as read-only.
 func get_battle(room_id: String) -> BattleState:
 	return Rooms.get_battle(room_id)
+
+
+## Game data (species, moves, items, abilities, type chart). Null until loaded; listen to
+## the "data_loaded" event. Treat it as read-only.
+func get_dex() -> Dex:
+	return GameData.dex
+
+
+## Loads a sprite texture (cached). Must be awaited: `var tex = await api.get_sprite("Garchomp")`.
+func get_sprite(species: String, back := false, shiny := false) -> Texture2D:
+	return await GameData.get_sprite(species, back, shiny)
 
 
 # --- "send_commands" permission ----------------------------------------------

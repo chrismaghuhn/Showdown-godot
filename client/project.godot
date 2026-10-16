@@ -23,6 +23,7 @@ AppConfig="*res://src/core/app_config.gd"
 EventBus="*res://src/core/event_bus.gd"
 Connection="*res://src/net/connection.gd"
 Rooms="*res://src/core/room_manager.gd"
+GameData="*res://src/core/game_data.gd"
 Plugins="*res://src/plugins/plugin_manager.gd"
 
 [display]
