@@ -260,6 +260,32 @@ func _build_sounds() -> void:
 	folder.pressed.connect(func() -> void: OS.shell_open(ProjectSettings.globalize_path(Sounds.USER_DIR)))
 	pack_box.add_child(_setting_row(tr("Community packs"), tr("A folder with sounds and an sdsounds.json."), folder))
 
+	var output := _section(tr("Output"))
+	var devices := OptionButton.new()
+	devices.custom_minimum_size.x = 260
+	var saved := Sounds.get_output_device()
+	var available := Sounds.output_devices()
+	for device in available:
+		devices.add_item(Sounds.device_label(device))
+		var index := devices.item_count - 1
+		devices.set_item_metadata(index, device)
+		devices.set_item_tooltip(index, device)
+		if device == Sounds.resolve_device(saved, available):
+			devices.select(index)
+	devices.item_selected.connect(func(index: int) -> void: Sounds.set_output_device(devices.get_item_metadata(index)))
+	var device_row := HBoxContainer.new()
+	device_row.add_child(devices)
+	var test := Button.new()
+	test.theme_type_variation = &"IconButton"
+	test.icon = Icons.get_icon("ui-play")
+	test.tooltip_text = tr("Play test sound")
+	test.pressed.connect(func() -> void: Sounds.play("your_turn", Notifier.volume()))
+	device_row.add_child(test)
+	var hint := tr("Where notification sounds play. \"System default\" follows your system settings.")
+	if Sounds.resolve_device(saved, available) != saved:
+		hint = tr("Your saved device (%s) isn't connected, so the system default is used.") % Sounds.device_label(saved)
+	output.add_child(_setting_row(tr("Output device"), hint, device_row))
+
 	var events := _section(tr("Per event"))
 	for event: String in NotificationEvents.EVENTS:
 		var controls := HBoxContainer.new()

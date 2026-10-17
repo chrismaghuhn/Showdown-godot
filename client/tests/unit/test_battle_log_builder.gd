@@ -50,3 +50,31 @@ func test_status_damage_and_move_heals() -> void:
 		"|move|p1a: Goat|Milk Drink|p1a: Goat\n|-heal|p1a: Goat|100/100")
 	assert_eq(entries[1]["text"], "Burn", "status id becomes a name")
 	assert_eq(entries[2]["chips"], [["Goat +6%", "up"]], "heal chip on the move row")
+
+
+## #17: the server replays the whole log before the first |request| when (re)joining.
+func _replay(lines: String, me: String) -> Array[Dictionary]:
+	var battle := BattleState.new("battle-test")
+	var builder := BattleLogBuilder.new()
+	for msg in PSParser.parse_frame(">battle-test\n" + lines):
+		battle.apply(msg)
+		if msg.type == "player":
+			battle.claim_side_by_name(me)
+		builder.push(msg, battle)
+	return builder.take_new()
+
+
+func test_rejoin_names_opponent_before_first_request() -> void:
+	var replay := "|init|battle\n|player|p1|Mirebloom|1|\n|player|p2|ironquill|2|\n" + \
+		"|switch|p1a: Ghold|Gholdengo|100/100\n|switch|p2a: Tremor|Garchomp|100/100\n|turn|5\n" + \
+		"|move|p1a: Ghold|Shadow Ball|p2a: Tremor"
+	var entries := _replay(replay, "IronQuill")
+	assert_eq(entries.back()["text"], "The opposing Ghold used [b]Shadow Ball[/b]!", "opponent named as opposing")
+	assert_eq(entries[1]["text"], "ironquill sent out [b]Tremor[/b]!", "own switch unchanged")
+
+
+func test_spectator_keeps_neutral_names() -> void:
+	var replay := "|player|p1|Mirebloom|1|\n|player|p2|sandsea|2|\n|switch|p1a: Ghold|Gholdengo|100/100\n" + \
+		"|move|p1a: Ghold|Shadow Ball|"
+	var entries := _replay(replay, "ironquill")
+	assert_eq(entries.back()["text"], "Ghold used [b]Shadow Ball[/b]!", "no opposing prefix for spectators")

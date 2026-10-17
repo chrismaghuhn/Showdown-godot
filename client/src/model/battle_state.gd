@@ -211,6 +211,20 @@ func apply_request(req: Dictionary) -> void:
 			mon.tera_type = str(entry["terastallized"])
 
 
+## Sets my_side from the player names while it is still unknown, i.e. before the first
+## |request| (at battle start, and when (re)joining a battle in progress, where the server replays
+## the whole log first). Spectators don't match any player and keep "".
+func claim_side_by_name(username: String) -> void:
+	if not my_side.is_empty() or username.is_empty():
+		return
+	var me := PSParser.to_id(username)
+	for side_id: String in sides:
+		var s: BattleSide = sides[side_id]
+		if not s.player_name.is_empty() and PSParser.to_id(s.player_name) == me:
+			my_side = side_id
+			return
+
+
 ## "move: Stealth Rock" -> "Stealth Rock"
 static func effect_name(effect: String) -> String:
 	var colon := effect.find(": ")
