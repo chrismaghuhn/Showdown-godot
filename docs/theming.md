@@ -72,7 +72,7 @@ The full list with values is `client/assets/themes/midnight-dark.sdtheme.json`. 
 | Type & sizes | `font.family.{ui,mono}`, `font.size.{xs,sm,md,lg,xl,2xl}` |
 | Layout | `space.{xs,sm,md,lg,xl,2xl,3xl}` (4px grid), `radius.{sm,md,lg,full}` |
 | Elevation | `shadow.{sm,md,lg}.{offset,size,color}` |
-| Motion (provisional) | `motion.duration.{fast,normal,slow}`, `motion.tooltip.delay` |
+| Motion | `motion.{instant,fast,base,slow}` (s), `motion.hp.{base,per-percent,max}`, `delay.tooltip.{show,hide,neighbor}`, `toast.lifetime.{info,action}`, `toast.max` |
 
 ## Using the theme in code
 
@@ -85,8 +85,10 @@ Screens and components never hard-code colors. They pick a **theme type variatio
 | `AppBackground`, `RaisedPanel`, `SunkenPanel`, `OverlayPanel`, `FieldPanel`, `FlatPanel` | PanelContainer | Surfaces |
 | `SecondaryLabel`, `MutedLabel`, `CapsLabel`, `HeadingLabel`, `TitleLabel`, `DisplayLabel`, `MonoLabel`, `MonoSmallLabel`, `DangerLabel`, `SuccessLabel`, `WarningLabel`, `PluginLabel` | Label | Typography |
 | `TypeBadge_<type>`, `StatusBadge_<code>`, `BoostUpChip`, `BoostDownChip`, `VolatileChip`, `FieldChip`, `PluginBadge`, `KbdLabel` | Label | Badges and chips (prefer the components) |
+| `AppHeader`, `DockPanel`, `DockHeader`, `BattleHeader`, `HudCard`, `ChoicePanel`, `FieldChipPanel`, `FieldChipSmallPanel`, `MiniSprite`, `LogPanel`, `LogTurnPanel`, `WaitingBanner` | PanelContainer | Battle screen surfaces |
 
-Components in `src/ui/components/`: `HPBar`, `TypeBadge`, `StatusBadge`, `BoostChip`, `MoveButton`, `IconView`.
+Components in `src/ui/components/`: `HPBar` (animated), `TypeBadge`, `StatusBadge`, `BoostChip`, `MoveButton`,
+`IconView`, `DockPanel`, `ConditionChip`, `TeamStrip`, `PokemonSlot`, `HudCard`, `BattleStage`, `BattleLogView`.
 For custom drawing, read a token: `Themes.color("color.hp.high")` (plugins: `api.get_token(key)`).
 
 Keep a Control (or Window) chain from the root to every screen: Godot passes the theme down only
@@ -113,14 +115,22 @@ conditions and `ui-*` for the interface.
 - Both are saved in `settings.cfg` (section `appearance`).
 - Command line for one run: `--theme=classic-light --ui-scale=1.25`.
 - Events: `EventBus.theme_changed(id)`, `EventBus.ui_scale_changed(scale)`.
+- Motion: `Themes.motion("motion.base")`, `Themes.fade(...)`, `Themes.hp_duration(delta_percent)`.
+  Easing: standard = `Tween.TRANS_CUBIC` + `EASE_OUT`, exit = `EASE_IN`, linear for timers.
+  **Reduce motion** (`--reduce-motion`, setting `appearance/reduce_motion`): moves become
+  instant, fades are capped at 80 ms, HP bars jump to the new value.
 
 ## Reviewing themes
 
 The **theme gallery** shows every component in every state with a live theme switcher and scale
 slider: button "Theme gallery" in the dev console, or `--screen=theme-gallery`.
 
-Render it to a PNG (needs a display, not `--headless`):
+Render it to a PNG (needs a display, not `--headless`). Screenshots render into an offscreen
+viewport of exactly `--screenshot-size` (default `1280x800`), so the window manager can't change it:
 
 ```bash
 godot --path client -- --screen=theme-gallery --theme=high-contrast --screenshot=/tmp/hc.png
 ```
+
+During a live battle (with `tools/local_server.sh` running): add `--server=local --search=gen9randombattle
+--screenshot-turn=3 --quit-after-screenshot`.

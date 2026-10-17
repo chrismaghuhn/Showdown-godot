@@ -439,3 +439,68 @@ func _build_battle() -> void:
 	_label_style("MoveNameLabelDisabled", c("color.text.disabled"), "ui_semi", "font.size.md")
 	_variation("MoveMetaLabel", "Label")
 	_label_style("MoveMetaLabel", c("color.text.secondary"), "mono_semi", "font.size.sm")
+	_build_battle_layout()
+
+
+## Panels and labels of the battle screen (design: "B · Desktop").
+func _build_battle_layout() -> void:
+	var bw := _bw
+	var lg := t.px("radius.lg")
+	var sm := t.px("radius.sm")
+	var panels := {
+		# 40px app header and 36px dock headers: a bottom border only.
+		"AppHeader": _bottom_border_box(c("color.surface.panel"), 12, 4),
+		"DockHeader": _bottom_border_box(Color.TRANSPARENT, 8, 6),
+		"BattleHeader": _bottom_border_box(Color.TRANSPARENT, 8, 4),
+		"HudCard": _shadow(_box(c("color.surface.panel"), c("color.border.default"), bw, lg, t.px("space.md"), t.px("space.sm")), "sm"),
+		"FieldChipPanel": _box(c("color.surface.panel"), c("color.border.default"), bw, 12, t.px("space.sm"), 3),
+		"FieldChipSmallPanel": _box(c("color.surface.sunken"), c("color.border.default"), bw, 10, t.px("space.sm"), 1),
+		"MiniSprite": _box(c("color.surface.raised"), c("color.border.default"), 1, sm, 0, 0),
+		"LogTurnPanel": _box(c("color.surface.raised"), Color.TRANSPARENT, 0, sm, t.px("space.sm"), 2),
+		"LogPanel": _box(c("color.surface.sunken"), Color.TRANSPARENT, 0, 0, t.px("space.md"), t.px("space.xs")),
+		"ChoicePanel": _box(c("color.surface.panel"), c("color.border.default"), bw, lg, t.px("space.md"), t.px("space.md")),
+		"DockPanel": _box(c("color.surface.panel"), c("color.border.default"), bw, lg, 0, 0),
+		"WaitingBanner": _box(c("color.accent.subtle"), Color.TRANSPARENT, 0, t.px("radius.md"), t.px("space.md"), t.px("space.sm")),
+	}
+	for variation: String in panels:
+		_variation(variation, "PanelContainer")
+		theme.set_stylebox("panel", variation, panels[variation])
+
+	var labels := {
+		"HudNameLabel": [c("color.text.primary"), "ui_semi", "font.size.lg"],
+		"DockTitleLabel": [c("color.text.primary"), "ui_semi", "font.size.md"],
+		"LogTurnLabel": [c("color.text.primary"), "ui_bold", "font.size.sm"],
+		"LogTimeLabel": [c("color.text.muted"), "mono_semi", "font.size.xs"],
+		"MiniSpriteLabel": [c("color.text.primary"), "ui_semi", "font.size.xs"],
+		"SlotNameLabel": [c("color.text.primary"), "ui_semi", "font.size.sm"],
+		"SlotNameLabelDisabled": [c("color.text.disabled"), "ui_semi", "font.size.sm"],
+		"SlotMetaLabel": [c("color.text.secondary"), "mono_semi", "font.size.xs"],
+		"ChipCountLabel": [c("color.text.secondary"), "mono_semi", "font.size.sm"],
+		"ChipTextLabel": [c("color.text.primary"), "ui_semi", "font.size.sm"],
+		"ChipSmallTextLabel": [c("color.text.primary"), "ui_semi", "font.size.xs"],
+	}
+	for variation: String in labels:
+		var spec: Array = labels[variation]
+		_variation(variation, "Label")
+		_label_style(variation, spec[0], spec[1], spec[2])
+
+	_variation("LogSubText", "RichTextLabel")
+	theme.set_color("default_color", "LogSubText", c("color.text.secondary"))
+	theme.set_font_size("normal_font_size", "LogSubText", t.px("font.size.sm"))
+	theme.set_font_size("bold_font_size", "LogSubText", t.px("font.size.sm"))
+
+	# Team icons in the battle header (src/ui/components/team_strip.gd).
+	theme.set_color("ring", "TeamIcon", c("color.accent.default"))
+	theme.set_color("border", "TeamIcon", c("color.border.default"))
+	theme.set_color("fainted", "TeamIcon", c("color.text.muted"))
+	theme.set_color("unknown", "TeamIcon", c("color.surface.hover"))
+	# Battle stage (src/ui/components/battle_stage.gd).
+	theme.set_color("ground", "BattleStage", c("color.field.ground"))
+	theme.set_color("placeholder", "BattleStage", c("color.text.muted"))
+	theme.set_color("placeholder_border", "BattleStage", c("color.border.default"))
+
+
+func _bottom_border_box(bg: Color, pad_h: int, pad_v: int) -> StyleBoxFlat:
+	var box := _box(bg, c("color.border.subtle"), 0, 0, pad_h, pad_v)
+	box.border_width_bottom = 1
+	return box

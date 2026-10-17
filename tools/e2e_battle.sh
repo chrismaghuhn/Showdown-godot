@@ -26,7 +26,12 @@ wait $PID_B || STATUS=1
 
 for f in "$LOG_DIR"/*.log; do
   echo "--- $(basename "$f")"
-  grep -E "\[automation\]|ERROR|SCRIPT ERROR|Plugin" "$f" || true
+  grep -E "\[automation\]|ERROR|Plugin" "$f" | awk '!seen[$0]++' | head -30 || true
+  # Any engine/script error in a client fails the test (the battle screen runs the whole time).
+  if grep -qE "^(SCRIPT )?ERROR" "$f"; then
+    echo "!! errors in $(basename "$f")"
+    STATUS=1
+  fi
 done
 [ $STATUS -eq 0 ] && echo "E2E: OK" || echo "E2E: FAILED (logs in $LOG_DIR)"
 exit $STATUS

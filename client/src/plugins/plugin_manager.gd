@@ -102,6 +102,15 @@ func register_panel(plugin_id: String, slot: StringName, control: Control) -> vo
 	EventBus.plugin_panel_added.emit(plugin_id, slot, control)
 
 
+## [{plugin_id, control}] for a slot, in registration order.
+func get_panel_entries(slot: StringName) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for p in _panels:
+		if p["slot"] == slot and is_instance_valid(p["control"]):
+			result.append({"plugin_id": p["plugin_id"], "control": p["control"]})
+	return result
+
+
 func get_panels(slot: StringName) -> Array[Control]:
 	var result: Array[Control] = []
 	for p in _panels:

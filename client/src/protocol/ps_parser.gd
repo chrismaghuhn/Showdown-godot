@@ -24,6 +24,8 @@ const MAX_ARGS := {
 	"queryresponse": 2,
 	"updatesearch": 1,
 	"updatechallenges": 1,
+	"inactive": 1,
+	"inactiveoff": 1,
 }
 
 ## Battle message types that may carry `[key] value` kwargs (besides every "-minor" message).

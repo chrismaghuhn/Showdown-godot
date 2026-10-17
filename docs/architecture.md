@@ -43,7 +43,8 @@ from the protocol and offers the choices the server lists in `|request|`.
 
 | Feature | Location |
 |---|---|
-| Real battle screen | `ui/screens/battle/` (reads `BattleState`, listens to battle events) |
+| Battle screen | done (layout B "Desktop"): `ui/screens/battle/`, components in `ui/components/` (stage, HUD, log, slots, tooltips) |
+| Battle layout A "Familiar", doubles | `ui/screens/battle/` as alternative layout, `StageLayout.DOUBLES` is ready |
 | Lobby, chat rooms | `ui/screens/lobby/`, chat model in `model/` if it needs state |
 | Teambuilder | `model/team/` (team format, import/export, pure + tested) and `ui/screens/teambuilder/` |
 | Pokédex / move data | done: `data/` + `GameData`, see [data-sources.md](data-sources.md) |
