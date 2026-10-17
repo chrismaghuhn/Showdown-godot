@@ -54,13 +54,10 @@ func search_dirs() -> PackedStringArray:
 
 
 func discover() -> void:
-	manifests.clear()
-	for base in search_dirs():
-		for sub in DirAccess.get_directories_at(base):
-			var m := PluginManifest.load_from_dir(base.path_join(sub))
-			if not m.is_valid():
-				push_warning("Plugin '%s' not loadable: %s" % [m.id, m.error])
-			manifests.append(m)
+	manifests = PluginManifest.load_all(search_dirs())
+	for m in manifests:
+		if not m.is_valid():
+			push_warning("Plugin '%s' not loadable: %s" % [m.id, m.error])
 
 
 func is_enabled_in_settings(id: String) -> bool:

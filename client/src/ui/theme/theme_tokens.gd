@@ -55,7 +55,8 @@ static func parse_definition(theme_id: String, text: String) -> Dictionary:
 	if json.parse(text) != OK or not json.data is Dictionary:
 		return {"ok": false, "error": "not valid JSON"}
 	var data: Dictionary = json.data
-	if int(data.get("format", 0)) != FORMAT:
+	var format: Variant = data.get("format", 0)
+	if not (format is float or format is int) or format != FORMAT:
 		return {"ok": false, "error": "unsupported format (expected %d)" % FORMAT}
 	if not data.get("tokens") is Dictionary:
 		return {"ok": false, "error": "\"tokens\" must be an object"}
@@ -155,7 +156,8 @@ func check_contrast() -> PackedStringArray:
 	for pair: Array in pairs:
 		if not (values.has(pair[0]) and values.has(pair[1])):
 			continue
-		var ratio := contrast_ratio(color(pair[0]), color(pair[1]))
+		# A translucent foreground is seen blended over its background.
+		var ratio := contrast_ratio(color(pair[1]).blend(color(pair[0])), color(pair[1]))
 		if ratio < pair[2]:
 			problems.append("low contrast %.2f:1 (needs %.1f) for %s on %s" % [ratio, pair[2], pair[0], pair[1]])
 	return problems
@@ -183,7 +185,8 @@ static func _convert(raw: Variant, key: Variant) -> Variant:
 		var s: String = raw
 		if s.begins_with("#"):
 			var hex := s.substr(1)
-			if (hex.length() == 6 or hex.length() == 8) and hex.is_valid_hex_number():
+			# Not is_valid_hex_number(): that also accepts a leading + or -.
+			if (hex.length() == 6 or hex.length() == 8) and Color.html_is_valid(hex):
 				return Color.html(s)
 			return null
 		return s if s.length() <= MAX_STRING_LENGTH else null

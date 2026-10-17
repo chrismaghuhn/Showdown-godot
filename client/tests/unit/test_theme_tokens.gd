@@ -1,6 +1,7 @@
 extends "res://tests/test_case.gd"
 
 const BUILTIN := ["midnight-dark", "classic-light", "high-contrast"]
+const ThemeManager := preload("res://src/ui/theme/theme_manager.gd")
 
 
 func _builtin_definitions() -> Dictionary:
@@ -92,3 +93,57 @@ func test_scrim_token_in_all_themes() -> void:
 	assert_eq(ThemeTokens.resolve("midnight-dark", defs, "midnight-dark").color("color.scrim"), Color.html("#00000099"), "dark")
 	assert_eq(ThemeTokens.resolve("classic-light", defs, "midnight-dark").color("color.scrim"), Color.html("#11111166"), "light")
 	assert_eq(ThemeTokens.resolve("high-contrast", defs, "midnight-dark").color("color.scrim"), Color.html("#000000CC"), "high contrast")
+
+
+func test_wrong_json_types_are_invalid() -> void:
+	for format: String in ["null", "\"1\"", "true", "1.5", "[1]"]:
+		var result: Variant = ThemeTokens.parse_definition("x", "{\"format\":%s,\"tokens\":{}}" % format)
+		assert_true(result is Dictionary and not result["ok"], "format " + format)
+
+
+func test_discovery_continues_past_bad_theme() -> void:
+	var dir := "user://test-theme-discovery"
+	_remove_dir(dir)
+	DirAccess.make_dir_recursive_absolute(dir)
+	for file_and_text: Array in [["a-null.sdtheme.json", "{\"format\":null,\"tokens\":{}}"],
+			["b-good.sdtheme.json", "{\"format\":1,\"tokens\":{}}"],
+			["c-text.sdtheme.json", "{\"format\":\"1\",\"tokens\":{}}"],
+			["d-good.sdtheme.json", "{\"format\":1,\"tokens\":{}}"]]:
+		var file := FileAccess.open(dir.path_join(file_and_text[0]), FileAccess.WRITE)
+		file.store_string(file_and_text[1])
+		file.close()
+	var problems: Array[String] = []
+	var defs: Dictionary = ThemeManager.load_definitions([[dir, false]], problems)
+	_remove_dir(dir)
+	assert_eq(defs.keys().size(), 4, "every file listed")
+	assert_true(not defs.get("a-null", {}).get("ok", true) and not defs.get("c-text", {}).get("ok", true), "bad themes invalid")
+	assert_true(defs.get("b-good", {}).get("ok", false) and defs.get("d-good", {}).get("ok", false), "themes after them still load")
+	assert_eq(problems.size(), 2, "a problem per bad theme")
+
+
+func test_signed_hex_colors_are_rejected() -> void:
+	var defs := _with("signed", JSON.stringify({"format": 1, "tokens": {
+		"color.surface.app": "#-12345",
+		"color.surface.panel": "#+1234567",
+	}}))
+	var tokens := ThemeTokens.resolve("signed", defs, "midnight-dark")
+	var dark := ThemeTokens.resolve("midnight-dark", defs, "midnight-dark")
+	assert_eq(tokens.color("color.surface.app"), dark.color("color.surface.app"), "signed 6-digit falls back")
+	assert_eq(tokens.color("color.surface.panel"), dark.color("color.surface.panel"), "signed 8-digit falls back")
+	var joined := "\n".join(tokens.warnings)
+	assert_true(joined.contains("invalid value for 'color.surface.app'"), "warns 6-digit")
+	assert_true(joined.contains("invalid value for 'color.surface.panel'"), "warns 8-digit")
+
+
+func test_translucent_text_gets_contrast_warning() -> void:
+	var defs := _with("ghost", JSON.stringify({"format": 1, "tokens": {"color.text.primary": "#FFFFFF10"}}))
+	var joined := "\n".join(ThemeTokens.resolve("ghost", defs, "midnight-dark").warnings)
+	assert_true(joined.contains("low contrast") and joined.contains("color.text.primary on color.surface.app"), "contrast warning")
+
+
+func _remove_dir(dir: String) -> void:
+	if not DirAccess.dir_exists_absolute(dir):
+		return
+	for file in DirAccess.get_files_at(dir):
+		DirAccess.remove_absolute(dir.path_join(file))
+	DirAccess.remove_absolute(dir)
