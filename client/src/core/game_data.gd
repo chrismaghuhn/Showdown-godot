@@ -47,7 +47,7 @@ var _partial := 0.0
 
 func _ready() -> void:
 	add_child(_cache)
-	_cache.updated.connect(func(_url: String) -> void: _changed = true)
+	_cache.updated.connect(_on_cache_updated)
 	_cache.progress.connect(_on_download_progress)
 	load_data()
 
@@ -132,6 +132,14 @@ func _set_file_state(key: String, file_state: String) -> void:
 	if file_state != "loading":
 		_partial = 0.0
 	_update_fraction()
+
+
+## Only new data files change the Dex; sprites come from the same cache.
+func _on_cache_updated(url: String) -> void:
+	for key: String in DATA_FILES:
+		if url == data_url() + DATA_FILES[key]:
+			_changed = true
+			return
 
 
 func _on_download_progress(url: String, downloaded: int, total: int) -> void:
