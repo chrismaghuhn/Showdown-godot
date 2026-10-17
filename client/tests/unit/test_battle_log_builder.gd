@@ -78,3 +78,17 @@ func test_spectator_keeps_neutral_names() -> void:
 		"|move|p1a: Ghold|Shadow Ball|"
 	var entries := _replay(replay, "ironquill")
 	assert_eq(entries.back()["text"], "Ghold used [b]Shadow Ball[/b]!", "no opposing prefix for spectators")
+
+
+func test_sethp_updates_the_damage_baseline() -> void:
+	var entries := _run("|switch|p2a: Y|Snorlax|30/100\n|turn|2\n|move|p1a: X|Pain Split|p2a: Y\n" +
+		"|-sethp|p2a: Y|60/100|[from] move: Pain Split\n|turn|3\n|move|p1a: X|Tackle|p2a: Y\n|-damage|p2a: Y|40/100")
+	assert_eq(entries.back()["chips"], [["Y −20%", "down"]], "damage after Pain Split")
+
+
+func test_chip_names_are_not_bbcode_escaped() -> void:
+	var entries := _run("|switch|p2a: [Bot]|Tyranitar|100/100\n|turn|2\n|move|p1a: X|Tackle|p2a: [Bot]\n" +
+		"|-damage|p2a: [Bot]|59/100")
+	assert_eq(entries.back()["chips"], [["[Bot] −41%", "down"]], "raw name in the chip")
+	assert_eq(entries.back()["text"], "X used [b]Tackle[/b]!", "row text")
+	assert_true(entries[0]["text"].contains("[lb]Bot]"), "row text stays escaped")

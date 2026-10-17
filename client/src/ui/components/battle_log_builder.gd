@@ -51,6 +51,9 @@ func push(msg: PSMessage, battle: BattleState) -> void:
 			_chip_on_move("Crit", "up")
 		"-damage", "-heal":
 			_on_hp_change(msg, battle)
+		"-sethp", "detailschange":
+			# Pain Split etc. set HP without a damage row; later chips are relative to it.
+			_remember_hp(msg.arg(0), battle)
 		"-boost", "-unboost":
 			_on_boost(msg, battle)
 		"-status":
@@ -132,7 +135,8 @@ func _on_hp_change(msg: PSMessage, battle: BattleState) -> void:
 	var delta := roundi(after - before)
 	if delta == 0:
 		return
-	var name := esc(BattleState.parse_ident(msg.arg(0))["name"])
+	# Chips are plain Labels: the name isn't BBCode-escaped.
+	var name: String = BattleState.parse_ident(msg.arg(0))["name"]
 	var chip := ["%s %s%d%%" % [name, "+" if delta > 0 else "−", absi(delta)], "up" if delta > 0 else "down"]
 	var source := str(msg.kwargs.get("from", ""))
 	if source.is_empty() and not _last_move.is_empty():
