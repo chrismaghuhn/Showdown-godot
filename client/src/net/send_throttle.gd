@@ -4,12 +4,13 @@ extends RefCounted
 ## User.chat): it runs one message per 600 ms, holds at most five more, and drops anything
 ## beyond with "Your message was not sent because you've been typing too quickly." The client
 ## keeps its own queue instead, sends a short burst right away and then one message per
-## INTERVAL_MS, so the server never has to drop one.
+## INTERVAL_MS - a little slower than the server, whose timers run late - so the server never
+## has to drop one.
 ##
 ## A token bucket: CAPACITY messages can go out at once (below the server's 1 + 5), then a token
 ## comes back every INTERVAL_MS. back_off() empties it when the server dropped a message anyway.
 
-const INTERVAL_MS := 600
+const INTERVAL_MS := 650
 const CAPACITY := 4
 const BACK_OFF_MS := 2000
 
@@ -36,9 +37,16 @@ func wait_ms(now_ms: int) -> int:
 
 ## The server dropped a message: send nothing for a while and start from an empty bucket.
 func back_off(now_ms: int, ms := BACK_OFF_MS) -> void:
-	_refill(now_ms)
 	_tokens = 0.0
 	_paused_until = now_ms + ms
+	# Nothing refills during the pause, or the burst right after it would refill the server's
+	# queue just as fast.
+	_refilled_at = _paused_until
+
+
+## True while a back-off is running.
+func is_paused(now_ms: int) -> bool:
+	return now_ms < _paused_until
 
 
 ## A new connection starts with a full bucket.
@@ -49,6 +57,11 @@ func reset() -> void:
 
 
 func _refill(now_ms: int) -> void:
-	if _refilled_at >= 0 and now_ms > _refilled_at:
-		_tokens = minf(_tokens + float(now_ms - _refilled_at) / INTERVAL_MS, CAPACITY)
+	if _refilled_at < 0:
+		_refilled_at = now_ms
+		return
+	# Never move backwards (a paused bucket, or a clock that went back) - no free tokens.
+	if now_ms <= _refilled_at:
+		return
+	_tokens = minf(_tokens + float(now_ms - _refilled_at) / INTERVAL_MS, CAPACITY)
 	_refilled_at = now_ms

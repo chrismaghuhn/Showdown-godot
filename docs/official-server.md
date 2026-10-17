@@ -14,14 +14,20 @@ checked, and what is still open before a public release (issue #24).
 | Client news | `https://api.github.com/repos/chrismaghuhn/Showdown-godot/releases` | this project only |
 
 Every request names the client: `User-Agent: ShowdownDesktop/<version>
-(+https://github.com/chrismaghuhn/Showdown-godot)`, also on the websocket handshake.
+(+https://github.com/chrismaghuhn/Showdown-godot)` - the websocket handshake, the login server,
+and every download (data, sprites, ratings, news).
 
 ## Being a good citizen
 
 - **Pacing.** The server runs one chat message or command per 600 ms for a normal user, holds
   five more and drops the rest with "typing too quickly" (`server/users.ts`, `User.chat`).
-  `Connection` paces itself the same way (`SendThrottle`: a burst of 4, then one message every
-  600 ms, in order). If the server drops one anyway, the client pauses for 2 s and tells the user.
+  `Connection` paces itself a little slower (`SendThrottle`: a burst of 4, then one message every
+  650 ms, in order), because the server's timers run late. If the server drops one anyway, the
+  client pauses for 2 s (nothing refills meanwhile) and tells the user once.
+  Closing on purpose ("Work offline", quitting) sends what's still queued first, so a move
+  isn't lost; a dropped connection discards it (the server repeats the request on rejoin).
+  Local test servers started with `--no-security` don't throttle, so the e2e tests can't show
+  throttle problems; the unit tests cover the pacing.
 - **One command per message.** The server runs every line of a message as a command; line
   breaks in anything the client sends become spaces.
 - **Names as ids.** Challenges, accepting and declining send user and format ids only.
@@ -80,8 +86,8 @@ Draft:
 > built with Godot: https://github.com/chrismaghuhn/Showdown-godot. It talks to the server
 > protocol directly (raw websocket at sim3.psim.us), signs in through the login server API
 > (`login` / `getassertion` / `upkeep`), and identifies itself with a `ShowdownDesktop/<version>`
-> User-Agent. It paces its own commands like your chat throttle (one per 600 ms after a short
-> burst), backs off reconnects (2–30 s with jitter, max 5), and caches data files and sprites
+> User-Agent on every request. It paces its own commands a bit slower than your chat throttle
+> (one per 650 ms after a short burst), backs off reconnects (2–30 s with jitter, max 5), and caches data files and sprites
 > (data revalidated daily, sprites monthly). Before a public release I'd like to make sure
 > this is welcome and done the way you prefer:
 >

@@ -56,7 +56,8 @@ func fetch(url: String, max_age_sec: int) -> PackedByteArray:
 	_active += 1
 	_in_flight[url] = true
 
-	var headers := PackedStringArray()
+	# Name the client to the servers it downloads from (data, sprites, ratings, news).
+	var headers := PackedStringArray([LoginClient.user_agent()])
 	if cached and meta.has("etag"):
 		headers.append("If-None-Match: " + str(meta["etag"]))
 	if cached and meta.has("last_modified"):

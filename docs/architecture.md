@@ -49,7 +49,7 @@ scheduled). States are only ever appended, plugins see the number.
   attempts, then `EventBus.connection_error` and "Try again". `disconnect_from_server()`
   ("Work offline") never reconnects.
 - **Pacing.** `send()` queues messages and lets `SendThrottle` pace them like the server's
-  chat throttle (a burst of 4, then one per 600 ms); line breaks become spaces. Details in
+  chat throttle (a burst of 4, then one per 650 ms); line breaks become spaces. Details in
   [official-server.md](official-server.md).
 - **Dead links.** A pulled cable doesn't close the socket. The websocket heartbeat pings every
   10 s (`--heartbeat=N` in tests); a missing pong closes the socket, which starts the attempts.
