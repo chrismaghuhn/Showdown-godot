@@ -8,7 +8,7 @@ Design: canvas "Settings · Notifications". Code: `NotificationEvents` (rules, p
 
 | Event | In-app | Sound | Desktop | Fires when |
 |---|---|---|---|---|
-| Battle found | ✓ | ✓ | ✓ | a battle starts shortly after we were searching |
+| Battle found | ✓ | ✓ | ✓ | a battle starts within 15 s after our search ended (matched), however long it took; not for battles that come back |
 | Your turn | ✓ | ✓ | ✓ | a new `|request|` asks for a decision |
 | Timer running low | ✓ | ✓ | ✓ | `|inactive|` reports ≤ the warning time (60/30/10 s, default 30) |
 | Challenge received | ✓ | ✓ | – | a `|pm|` with `/challenge FORMAT|…` to us |

@@ -10,7 +10,7 @@ extends Node
 ## for the bell in the app header; `unread` counts what came in since the bell was last opened.
 
 const SECTION := "notifications"
-## A battle that starts this soon after we were searching counts as "battle found".
+## A battle that starts this soon after our search ended counts as "battle found".
 const SEARCH_GRACE_MS := 15000
 const HISTORY_SIZE := 30
 
@@ -20,7 +20,9 @@ var unread := 0
 
 var _sound_and_desktop := true
 var _current_screen := &""
-var _last_searching_ms := -1
+var _searching := false
+## When the last search ended (matched or cancelled); -1 = none since the last battle found.
+var _search_ended_ms := -1
 var _notified_rqid := {}
 var _timer_warned := {}
 
@@ -129,8 +131,14 @@ func send_test() -> void:
 func _on_message(msg: PSMessage) -> void:
 	if msg.type == "updatesearch":
 		var data: Variant = JSON.parse_string(msg.arg(0))
-		if data is Dictionary and not (data.get("searching", []) as Array).is_empty():
-			_last_searching_ms = Time.get_ticks_msec()
+		if not data is Dictionary:
+			return
+		# The server sends |updatesearch| only when the search changes: a match ends the search
+		# right before the battle's |init|, however long the search took.
+		var searching := not (data.get("searching", []) as Array).is_empty()
+		if _searching and not searching:
+			_search_ended_ms = Time.get_ticks_msec()
+		_searching = searching
 
 
 func _on_screen_changed(screen: StringName) -> void:
@@ -141,9 +149,10 @@ func _on_screen_changed(screen: StringName) -> void:
 
 
 func _on_battle_started(battle: BattleState) -> void:
-	if _last_searching_ms < 0 or Time.get_ticks_msec() - _last_searching_ms > SEARCH_GRACE_MS:
+	# Battles coming back (reconnect, restart) weren't found, even right after a search ended.
+	if battle.restored or _search_ended_ms < 0 or Time.get_ticks_msec() - _search_ended_ms > SEARCH_GRACE_MS:
 		return
-	_last_searching_ms = -1
+	_search_ended_ms = -1
 	var format := battle.room_id.get_slice("-", 1)
 	post("battle_found", tr("Battle found"), tr("%s · opening the battle") % format,
 		[[tr("Open battle"), _go_to_battle.bind(battle.room_id)], [tr("Stay here"), Callable()]],

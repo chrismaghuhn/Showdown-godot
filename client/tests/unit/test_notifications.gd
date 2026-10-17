@@ -86,3 +86,62 @@ func test_output_device_labels() -> void:
 	assert_eq(Sounds.device_label("alsa_output.pci-0000_06_00.1.hdmi-stereo"), "HDMI", "hdmi")
 	assert_eq(Sounds.device_label("Speakers (Realtek(R) Audio)"), "Speakers (Realtek(R) Audio)", "readable names unchanged")
 	assert_eq(Sounds.device_label("Default"), "System default", "default")
+
+
+func test_battle_found_after_long_search() -> void:
+	var toasts := _capture_toasts()
+	_feed('|updatesearch|{"searching":["gen9ou"],"games":null}')
+	_age_search(40000)
+	_feed('|updatesearch|{"searching":[],"games":{"battle-gen9ou-501":"[Gen 9] OU"}}')
+	_feed(">battle-gen9ou-501\n|init|battle\n|title|Alice vs. Bob")
+	assert_eq(_titles(toasts), ["Battle found"], "40 s search, then matched")
+	_release(toasts)
+	Rooms.battles.erase("battle-gen9ou-501")
+
+
+func test_battles_that_come_back_are_not_found() -> void:
+	var toasts := _capture_toasts()
+	_feed(">battle-gen9ou-502\n|init|battle\n|title|Alice vs. Bob")
+	assert_eq(_titles(toasts), [], "no search: opening a battle")
+	# The connection drops while searching; the server forgets the search.
+	_feed('|updatesearch|{"searching":["gen9ou"],"games":null}')
+	EventBus.reconnected.emit()
+	_feed('|updatesearch|{"searching":[],"games":{"battle-gen9ou-502":"[Gen 9] OU"}}')
+	_feed(">battle-gen9ou-502\n|init|battle\n|title|Alice vs. Bob")
+	assert_true(Rooms.get_battle("battle-gen9ou-502").restored, "restored")
+	assert_eq(_titles(toasts), [], "a restored battle right after a search ended")
+	_release(toasts)
+	Rooms.battles.erase("battle-gen9ou-502")
+
+
+# --- Helpers --------------------------------------------------------------------------------
+
+func _feed(frame: String) -> void:
+	for msg in PSParser.parse_frame(frame):
+		EventBus.message_received.emit(msg)
+
+
+## Records toasts until _release; also keeps the bell's history as it was.
+func _capture_toasts() -> Dictionary:
+	var toasts := []
+	var on_toast := func(toast: Dictionary) -> void: toasts.append(toast)
+	EventBus.toast_requested.connect(on_toast)
+	return {"toasts": toasts, "on_toast": on_toast, "history": Notifier.history.duplicate(), "unread": Notifier.unread}
+
+
+func _release(capture: Dictionary) -> void:
+	EventBus.toast_requested.disconnect(capture["on_toast"])
+	Notifier.history = capture["history"]
+	Notifier.unread = capture["unread"]
+	Notifier._searching = false
+	Notifier._search_ended_ms = -1
+
+
+func _titles(capture: Dictionary) -> Array:
+	return capture["toasts"].map(func(toast: Dictionary) -> String: return toast["title"])
+
+
+## Pretends `ms` passed since the search changed.
+func _age_search(ms: int) -> void:
+	if Notifier._search_ended_ms >= 0:
+		Notifier._search_ended_ms -= ms
