@@ -18,9 +18,9 @@ func _dex() -> Dex:
 	return Dex.from_sources(POKEDEX, MOVES, {}, {}, typechart)
 
 
-func _chomp(tera_type := "") -> BattlePokemon:
+func _chomp(tera_type := "", species := "Garchomp") -> BattlePokemon:
 	var mon := BattlePokemon.new("Chomp")
-	mon.species = "Garchomp"
+	mon.species = species
 	mon.tera_type = tera_type
 	return mon
 
@@ -52,3 +52,26 @@ func test_pokemon_tooltip_shows_tera_type() -> void:
 	assert_eq(plain, PackedStringArray(["Dragon", "Ground"]), "species types")
 	var steel := _texts(BattleTooltips.pokemon_tooltip(_chomp("Steel"), false, dex, null), true)
 	assert_eq(steel, PackedStringArray(["Tera Steel"]), "Tera badge in place of the species types")
+
+
+func test_stellar_shows_species_types_and_tera_badge() -> void:
+	var stellar := _texts(BattleTooltips.pokemon_tooltip(_chomp("Stellar"), false, _dex(), null), true)
+	assert_eq(stellar, PackedStringArray(["Dragon", "Ground", "Tera Stellar"]), "badges")
+
+
+func test_unknown_species_uses_tera_type() -> void:
+	var dex := _dex()
+	var steel := _texts(BattleTooltips.move_tooltip("Ice Beam", dex, "", "1", _chomp("Steel", "Missingno")))
+	assert_true(steel.has("×0.5") and steel.has("Not very effective vs Missingno"), "verdict from Tera Steel: %s" % [steel])
+	var unknown := _texts(BattleTooltips.move_tooltip("Ice Beam", dex, "", "1", _chomp("", "Missingno")))
+	assert_true(not unknown.has("Neutral vs Missingno") and not unknown.has("×1.0"), "no verdict without types: %s" % [unknown])
+
+
+func test_own_tera_option_is_not_terastallized() -> void:
+	var dex := _dex()
+	var mine := _chomp()
+	mine.tera_option = "Steel"
+	var move := _texts(BattleTooltips.move_tooltip("Ice Beam", dex, "", "1", mine))
+	assert_true(move.has("×4.0"), "species types until it terastallizes: %s" % [move])
+	var badges := _texts(BattleTooltips.pokemon_tooltip(mine, true, dex, null), true)
+	assert_eq(badges, PackedStringArray(["Dragon", "Ground"]), "species types")
