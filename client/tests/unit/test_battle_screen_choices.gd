@@ -101,3 +101,71 @@ func test_screen_opened_mid_decision_shows_the_request() -> void:
 	screen = _screen()
 	assert_true(screen._waiting, "a choice already sent: waiting")
 	_done(screen)
+
+
+func test_choice_errors_are_classified() -> void:
+	assert_eq(BattleState.choice_error("[Invalid choice] Can't move: Your Pikachu doesn't have a move 3"), "rejected", "rejected")
+	assert_eq(BattleState.choice_error("[Invalid choice] Can't undo: A trapping/disabling effect would cause undo to leak information"),
+		"stands", "can't undo")
+	assert_eq(BattleState.choice_error("[Invalid choice] Sorry, too late to cancel; the next turn has already started"), "stands", "too late")
+	assert_eq(BattleState.choice_error("[Invalid choice] There's nothing to choose"), "stands", "nothing to choose")
+	assert_eq(BattleState.choice_error("[Invalid choice] There's nothing to cancel"), "ignore", "nothing to cancel")
+	assert_eq(BattleState.choice_error("[Unavailable choice] Can't switch: The active Pokémon is trapped"), "unavailable", "unavailable")
+	assert_eq(BattleState.choice_error("/join: you must be logged in"), "", "not a choice error")
+
+
+func test_unavailable_choice_keeps_its_reason_with_the_updated_request() -> void:
+	_start()
+	var screen := _screen()
+	_request(REQUEST)
+	screen._on_choice_sent("switch 2")
+	_feed("|error|[Unavailable choice] Can't switch: The active Pokémon is trapped")
+	var trapped := REQUEST.duplicate(true)
+	trapped["rqid"] = 4
+	trapped["update"] = true
+	trapped["active"][0]["trapped"] = true
+	_request(trapped)
+	screen._refresh()
+	assert_true(not screen._waiting and screen._chosen.is_empty(), "pick again")
+	assert_eq(screen._choice_note.text, "Can't switch: The active Pokémon is trapped", "the reason stays")
+	assert_true(screen._slot_buttons[1].disabled, "the switch is blocked now")
+	assert_true(not screen._move_buttons[0].disabled, "moves can be picked")
+	_done(screen)
+
+
+func test_late_undo_and_nothing_to_cancel() -> void:
+	_start()
+	var screen := _screen()
+	_request(REQUEST)
+	screen._on_choice_sent("move 1")
+	screen._on_choice_undone()
+	_feed("|error|[Invalid choice] Sorry, too late to cancel; the next turn has already started")
+	assert_eq(screen._chosen, "move 1", "too late: the move stands")
+	assert_true(screen._waiting and not screen._can_cancel(), "waiting, nothing to cancel")
+	_request({"rqid": 4, "wait": true, "side": REQUEST["side"]})
+	_feed("|error|[Invalid choice] There's nothing to cancel")
+	screen._refresh()
+	assert_true(screen._waiting, "still waiting after a wait request")
+	assert_eq(screen._choice_error, "", "no stale note")
+	_done(screen)
+
+
+func test_refused_undo_of_a_choice_made_elsewhere_waits() -> void:
+	_start()
+	var screen := _screen()
+	_request(REQUEST)
+	_feed("|error|[Invalid choice] Can't undo: A trapping/disabling effect would cause undo to leak information")
+	assert_true(screen._waiting, "the choice made elsewhere stands: waiting")
+	assert_true(not Rooms.get_battle(ROOM).awaiting_choice, "the tab doesn't ask for a choice")
+	_done(screen)
+
+
+func test_no_cancel_in_formats_without_cancel() -> void:
+	_start()
+	var screen := _screen()
+	var no_cancel := REQUEST.duplicate(true)
+	no_cancel["noCancel"] = true
+	_request(no_cancel)
+	screen._on_choice_sent("move 1")
+	assert_true(not screen._can_cancel(), "no Cancel offered")
+	_done(screen)

@@ -480,20 +480,28 @@ func _on_battle_request(requested: BattleState, request: Dictionary) -> void:
 	_queue_refresh()
 
 
-## |error|[Invalid choice] …: the server waits for another choice without a new request, except
-## after "Can't undo", where the first choice stands. [Unavailable choice] (e.g. trapped after
-## all) comes with an updated request.
+## A choice |error| (see BattleState.choice_error()): pick again, or the first choice stands
+## ("Can't undo", too late), or an updated request follows ([Unavailable choice]).
 func _on_choice_error(text: String) -> void:
-	if text.begins_with("[Invalid choice] Can't undo"):
-		if not _undone.is_empty():
-			_chosen = _undone
-			_waiting = true
-		_cant_undo = true
-	elif text.begins_with("[Invalid choice]"):
-		_waiting = false
-		_chosen = ""
-	elif not text.begins_with("[Unavailable choice]"):
-		return
+	var asking: bool = not _request.is_empty() and not _request.get("wait", false)
+	match BattleState.choice_error(text):
+		"rejected":
+			if not asking:
+				return
+			_waiting = false
+			_chosen = ""
+		"stands":
+			if not _undone.is_empty():
+				_chosen = _undone
+			_waiting = _waiting or asking
+			_cant_undo = true
+		"unavailable":
+			pass
+		"ignore":
+			_undone = ""
+			return
+		_:
+			return
 	_undone = ""
 	_choice_error = text.substr(text.find("]") + 1).strip_edges()
 
@@ -532,7 +540,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		return
 	var key := event as InputEventKey
 	var number := key.keycode - KEY_1
-	if key.keycode == KEY_ESCAPE and _waiting:
+	if key.keycode == KEY_ESCAPE and _can_cancel():
 		_cancel_choice()
 	elif number >= 0 and number < 6 and key.shift_pressed:
 		if not _slot_buttons[number].disabled and _slot_buttons[number].visible:
@@ -575,9 +583,11 @@ func _on_choice_sent(choice: String) -> void:
 	_choice_error = ""
 
 
-## A sent choice can be taken back until a request answers it or the server refused an undo.
+## A sent choice can be taken back until a request answers it or the server refused an undo
+## (and not at all in formats without Cancel: "noCancel").
 func _can_cancel() -> bool:
-	return battle != null and not battle.ended and _waiting and not _chosen.is_empty() and not _cant_undo
+	return battle != null and not battle.ended and _waiting and not _chosen.is_empty() and not _cant_undo \
+		and not _request.get("noCancel", false)
 
 
 func _cancel_choice() -> void:
@@ -714,7 +724,7 @@ func _refresh_choices(mine: BattleSide, my_active: BattlePokemon, opp_active: Ba
 		_choice_title.text = tr("What will %s do?") % (my_active.name if my_active != null else "?")
 		_choice_note.text = ""
 	if not _choice_error.is_empty() and not battle.ended:
-		_choice_note.text = _choice_error
+		_choice_note.text = _choice_error if _choice_note.text.is_empty() else "%s · %s" % [_choice_note.text, _choice_error]
 	_cancel_button.visible = _can_cancel()
 	_forfeit_button.disabled = battle.ended
 	var tera_type := str(active_req.get("canTerastallize", ""))
