@@ -71,3 +71,18 @@ func test_audio_signatures() -> void:
 	assert_true(not Sounds.looks_like("definitely not audio".to_utf8_buffer(), "wav"), "text as wav")
 	assert_true(Sounds.looks_like("OggS........".to_utf8_buffer(), "ogg"), "ogg magic")
 	assert_true(not Sounds.looks_like("RIFF....WAVE".to_utf8_buffer(), "ogg"), "wav is not ogg")
+
+
+func test_output_device_fallback() -> void:
+	var available := PackedStringArray(["Default", "alsa_output.usb-HP__Inc_HyperX_Cloud_III_000000000000-00.analog-stereo"])
+	assert_eq(Sounds.resolve_device(available[1], available), available[1], "connected device is used")
+	assert_eq(Sounds.resolve_device("alsa_output.usb-Old_Headset-00.analog-stereo", available), "Default", "unplugged -> default")
+	assert_eq(Sounds.resolve_device("Default", available), "Default", "default stays")
+
+
+func test_output_device_labels() -> void:
+	assert_eq(Sounds.device_label("alsa_output.usb-HP__Inc_HyperX_Cloud_III_000000000000-00.analog-stereo"), "HP Inc HyperX Cloud III", "usb headset")
+	assert_eq(Sounds.device_label("alsa_output.usb-TONOR_TONOR_TD520S_Dynamic_Mic_0000KT5a170000389-00.analog-stereo"), "TONOR TD520S Dynamic Mic", "usb mic, duplicate vendor")
+	assert_eq(Sounds.device_label("alsa_output.pci-0000_06_00.1.hdmi-stereo"), "HDMI", "hdmi")
+	assert_eq(Sounds.device_label("Speakers (Realtek(R) Audio)"), "Speakers (Realtek(R) Audio)", "readable names unchanged")
+	assert_eq(Sounds.device_label("Default"), "System default", "default")

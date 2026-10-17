@@ -6,6 +6,8 @@ extends Node
 ## Per event (settings section "sounds"): "<event>" = "pack" (default) | "none" | "custom:<file>"
 ## Custom files are copied to user://sounds/custom/ so they keep working if the original moves.
 ## Only .wav, .ogg and .mp3 up to MAX_BYTES and MAX_SECONDS are accepted.
+## Output device (settings "sounds/output_device"): "Default" follows the system; a saved device
+## that is no longer connected falls back to the system default.
 
 const BUILTIN_DIR := "res://assets/sounds"
 const USER_DIR := "user://sounds"
@@ -14,6 +16,7 @@ const DEFAULT_PACK := "default"
 const EXTENSIONS := ["wav", "ogg", "mp3"]
 const MAX_BYTES := 2 * 1024 * 1024
 const MAX_SECONDS := 5.0
+const SYSTEM_DEFAULT := "Default"
 
 ## pack id -> {"name", "author", "dir", "sounds": {event: file}, "builtin": bool}
 var packs := {}
@@ -28,6 +31,7 @@ func _ready() -> void:
 		add_child(player)
 		_players.append(player)
 	discover()
+	_apply_output_device()
 
 
 func discover() -> void:
@@ -47,6 +51,64 @@ func discover() -> void:
 				continue
 			packs[sub] = {"name": str(data.get("name", sub)).left(64), "author": str(data.get("author", "")).left(96),
 				"dir": base.path_join(sub), "sounds": data["sounds"], "builtin": dir_and_flag[1]}
+
+
+# --- Output device --------------------------------------------------------------------------
+
+func output_devices() -> PackedStringArray:
+	return AudioServer.get_output_device_list()
+
+
+## The saved device ("Default" = system default), even if it is not connected right now.
+func get_output_device() -> String:
+	return str(AppConfig.get_setting("sounds", "output_device", SYSTEM_DEFAULT))
+
+
+func set_output_device(device: String) -> void:
+	AppConfig.set_setting("sounds", "output_device", device)
+	_apply_output_device()
+
+
+func _apply_output_device() -> void:
+	AudioServer.output_device = resolve_device(get_output_device(), output_devices())
+
+
+## The device to use: the saved one if it is available, otherwise the system default.
+static func resolve_device(saved: String, available: PackedStringArray) -> String:
+	return saved if saved in available else SYSTEM_DEFAULT
+
+
+## Readable name for a device. PulseAudio/PipeWire report sink ids like
+## "alsa_output.usb-HP__Inc_HyperX_Cloud_III_000000000000-00.analog-stereo"; other platforms
+## already report readable names, which are returned unchanged.
+static func device_label(device: String) -> String:
+	if device == SYSTEM_DEFAULT:
+		return TranslationServer.translate("System default")
+	if not device.begins_with("alsa_output.") and not device.begins_with("bluez_output."):
+		return device
+	var kind := ""
+	if device.contains(".hdmi"):
+		kind = "HDMI"
+	var core := device.get_slice(".", 1)
+	for prefix in ["usb-", "pci-", "platform-"]:
+		core = core.trim_prefix(prefix)
+	var words := PackedStringArray()
+	for word in core.replace("-", "_").split("_", false):
+		# Drop serial numbers and bus ids ("0000KT5a170000389", "000000000000", "00", "06").
+		var digits := 0
+		for c in word:
+			if c >= "0" and c <= "9":
+				digits += 1
+		if word.is_valid_int() or (word.length() >= 10 and digits * 2 >= word.length()):
+			continue
+		if words.is_empty() or words[words.size() - 1] != word:
+			words.append(word)
+	var label := " ".join(words).strip_edges()
+	if device.begins_with("alsa_output.pci-") and kind.is_empty() and label.is_empty():
+		label = TranslationServer.translate("Built-in audio")
+	if kind == "HDMI":
+		return "HDMI" if label.is_empty() or device.begins_with("alsa_output.pci-") else label + " (HDMI)"
+	return label if not label.is_empty() else device
 
 
 func current_pack() -> String:
