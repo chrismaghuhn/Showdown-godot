@@ -5,6 +5,9 @@ extends RefCounted
 ## No network, UI or autoload dependencies: feed it PSMessages (live, replay or test)
 ## and read the state. The server does all game mechanics; this only mirrors them.
 
+## Weathers without a duration (they end when the Pokémon that set them leaves).
+const ENDLESS_WEATHERS := ["DesolateLand", "PrimordialSea", "DeltaStream"]
+
 var room_id := ""
 var format := ""
 var gen := 0
@@ -20,6 +23,8 @@ var weather_turn := 0
 var field_conditions := PackedStringArray()
 ## Field condition -> turn it started.
 var field_turns := {}
+## Turn whose end-of-turn upkeep (|upkeep|) already ran.
+var _upkeep_turn := -1
 ## Battle timer (from |inactive|): seconds left this turn and in total; -1 = unknown.
 var timer_on := false
 var timer_turn_seconds := -1
@@ -163,20 +168,22 @@ func apply(msg: PSMessage) -> void:
 		"-weather":
 			var new_weather := "" if msg.arg(0) == "none" else msg.arg(0)
 			if new_weather != weather and not msg.kwargs.has("upkeep"):
-				weather_turn = turn
+				weather_turn = _effect_start_turn()
 			weather = new_weather
 		"-fieldstart":
 			var effect := effect_name(msg.arg(0))
 			if not effect in field_conditions:
 				field_conditions.append(effect)
-			field_turns[effect] = turn
+			field_turns[effect] = _effect_start_turn()
 		"-fieldend":
 			var index := field_conditions.find(effect_name(msg.arg(0)))
 			if index != -1:
 				field_conditions.remove_at(index)
 			field_turns.erase(effect_name(msg.arg(0)))
+		"upkeep":
+			_upkeep_turn = turn
 		"-sidestart":
-			side(msg.arg(0).substr(0, 2)).add_condition(effect_name(msg.arg(1)), turn)
+			side(msg.arg(0).substr(0, 2)).add_condition(effect_name(msg.arg(1)), _effect_start_turn())
 		"-sideend":
 			side(msg.arg(0).substr(0, 2)).conditions.erase(effect_name(msg.arg(1)))
 		"-item":
@@ -253,7 +260,7 @@ func _apply_timer(text: String) -> void:
 ## Turns left for a 5-turn effect that started in `start_turn` (estimate: 5 turns, items
 ## like Light Clay or Damp Rock extend it to 8 and are not detected).
 func turns_left(start_turn: int, duration := 5) -> int:
-	return maxi(duration - (turn - start_turn), 0)
+	return clampi(duration - (turn - start_turn), 0, duration)
 
 
 ## Applies a parsed |request| JSON. Our own side gets exact HP and move lists from it.
@@ -292,6 +299,17 @@ func claim_side_by_name(username: String) -> void:
 		if not s.player_name.is_empty() and PSParser.to_id(s.player_name) == me:
 			my_side = side_id
 			return
+
+
+## Turns left for the current weather; -1 for weathers that last until their setter leaves.
+func weather_turns_left() -> int:
+	return -1 if weather in ENDLESS_WEATHERS else turns_left(weather_turn)
+
+
+## The turn a new effect counts from: its first countdown is this turn's upkeep, or the next
+## one's if it starts before turn 1 (lead abilities) or after this turn's upkeep (replacements).
+func _effect_start_turn() -> int:
+	return turn + 1 if turn == 0 or _upkeep_turn == turn else turn
 
 
 ## "move: Stealth Rock" -> "Stealth Rock"

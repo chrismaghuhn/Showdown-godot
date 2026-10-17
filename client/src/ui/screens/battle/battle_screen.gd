@@ -589,8 +589,9 @@ func _refresh_field_chips() -> void:
 	if battle.weather.is_empty():
 		_field_chips.add_child(ConditionChip.new(tr("No weather"), "weather-none", "", false, true))
 	else:
+		var weather_left := battle.weather_turns_left()
 		_field_chips.add_child(ConditionChip.new(FieldConditions.weather_name(battle.weather),
-			FieldConditions.weather_icon(battle.weather), str(battle.turns_left(battle.weather_turn))))
+			FieldConditions.weather_icon(battle.weather), "" if weather_left < 0 else str(weather_left)))
 	var has_terrain := false
 	for condition in battle.field_conditions:
 		has_terrain = has_terrain or FieldConditions.is_terrain(condition)
