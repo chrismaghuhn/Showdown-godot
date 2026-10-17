@@ -22,7 +22,8 @@ my-plugin/
 }
 ```
 
-- `id`: lowercase letters, digits, dashes. Unique.
+- `id`: lowercase letters, digits, dashes. Unique, and the same as the plugin's folder name.
+- `entry`: a `.gd` file inside the plugin folder (`main.gd`, `lib/main.gd`; no `..` or absolute paths).
 - `api_version`: must match the client's `PluginAPI.VERSION`, otherwise the plugin is not loaded.
 - `permissions`: what the plugin may do (see below).
 
@@ -85,6 +86,8 @@ its UI comes from.
   (Linux: `~/.local/share/godot/app_userdata/Showdown Desktop/plugins/`).
 - During development: `tools/run_client.sh` loads the repo's `plugins/` folder.
   Enable plugins with `--enable-plugins=id1,id2`.
+- If the same id is found twice, the first loadable copy wins (installed before development)
+  and any other loadable copy is listed as not loadable ("duplicate id").
 
 A plugin that raises an engine or script error is **paused**: it is switched off, the user
 sees "<name> paused" with "Reload plugin" / "Disable", and the battle goes on.

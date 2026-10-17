@@ -37,23 +37,34 @@ func _ready() -> void:
 
 
 func discover() -> void:
-	definitions.clear()
-	for dir_and_flag: Array in [[BUILTIN_DIR, true], [USER_DIR, false]]:
+	var problems: Array[String] = []
+	definitions = load_definitions([[BUILTIN_DIR, true], [USER_DIR, false]], problems)
+	for problem in problems:
+		push_warning(problem)
+
+
+## Reads the .sdtheme.json files of `dirs` ([[dir, builtin], ...]) into theme id ->
+## parse_definition() result plus "builtin" and "path". Appends a message per skipped or
+## unloadable file to `problems`.
+static func load_definitions(dirs: Array, problems: Array[String]) -> Dictionary:
+	var result := {}
+	for dir_and_flag: Array in dirs:
 		var dir: String = dir_and_flag[0]
 		for file in DirAccess.get_files_at(dir):
 			if not file.ends_with(".sdtheme.json"):
 				continue
 			var id := file.trim_suffix(".sdtheme.json")
-			if definitions.has(id) and definitions[id]["builtin"]:
-				push_warning("Theme '%s' in %s ignored: a built-in theme has that id" % [id, dir])
+			if result.has(id) and result[id]["builtin"]:
+				problems.append("Theme '%s' in %s ignored: a built-in theme has that id" % [id, dir])
 				continue
 			var path := dir.path_join(file)
 			var definition := ThemeTokens.parse_definition(id, FileAccess.get_file_as_string(path))
 			definition["builtin"] = dir_and_flag[1]
 			definition["path"] = path
 			if not definition["ok"]:
-				push_warning("Theme %s not loadable: %s" % [path, definition["error"]])
-			definitions[id] = definition
+				problems.append("Theme %s not loadable: %s" % [path, definition["error"]])
+			result[id] = definition
+	return result
 
 
 ## [{id, name, author, builtin, error}] sorted: built-in first, then by name.

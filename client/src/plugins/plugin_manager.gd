@@ -54,13 +54,10 @@ func search_dirs() -> PackedStringArray:
 
 
 func discover() -> void:
-	manifests.clear()
-	for base in search_dirs():
-		for sub in DirAccess.get_directories_at(base):
-			var m := PluginManifest.load_from_dir(base.path_join(sub))
-			if not m.is_valid():
-				push_warning("Plugin '%s' not loadable: %s" % [m.id, m.error])
-			manifests.append(m)
+	manifests = PluginManifest.load_all(search_dirs())
+	for m in manifests:
+		if not m.is_valid():
+			push_warning("Plugin '%s' not loadable: %s" % [m.id, m.error])
 
 
 func is_enabled_in_settings(id: String) -> bool:
@@ -72,11 +69,16 @@ func is_active(id: String) -> bool:
 	return _active.has(id)
 
 
+## The loadable manifest for `id`, else the first one with that id, else null.
 func get_manifest(id: String) -> PluginManifest:
+	var first: PluginManifest = null
 	for m in manifests:
 		if m.id == id:
-			return m
-	return null
+			if m.is_valid():
+				return m
+			if first == null:
+				first = m
+	return first
 
 
 func enable(id: String) -> bool:

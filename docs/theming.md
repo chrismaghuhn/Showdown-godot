@@ -50,7 +50,8 @@ A theme is data only. On load the client:
 - rejects files over 64 KB, invalid JSON or an unknown `format`
 - ignores unknown keys, values of the wrong type and numbers out of range (with a warning)
 - checks WCAG contrast for text and control pairs (e.g. `color.text.primary` on
-  `color.surface.panel` ≥ 4.5:1, type and status badge ink ≥ 4.5:1) and lists failures as warnings
+  `color.surface.panel` ≥ 4.5:1, type and status badge ink ≥ 4.5:1) and lists failures as warnings;
+  a translucent foreground is checked as it appears, blended over its background
 - never loads files, scripts or URLs named in a theme
 
 Warnings are shown in the theme gallery and in the log. A broken theme can make the client look
