@@ -11,7 +11,7 @@ func _ready() -> void:
 	EventBus.theme_changed.connect(func(_id: String) -> void: _refresh_header())
 	# Screens stay alive: coming back picks up themes added to the themes folder meanwhile.
 	visibility_changed.connect(func() -> void:
-		if visible:
+		if is_visible_in_tree():
 			Themes.discover()
 			_refresh_header())
 	_refresh_header()
@@ -46,6 +46,9 @@ func _build() -> void:
 	_theme_select = OptionButton.new()
 	_theme_select.item_selected.connect(func(index: int) -> void:
 		Themes.apply(_theme_select.get_item_metadata(index)))
+	_theme_select.get_popup().about_to_popup.connect(func() -> void:
+		Themes.discover()
+		_refresh_header())
 	header.add_child(_theme_select)
 	header.add_child(_label("UI scale", &"CapsLabel", true))
 	header.add_child(UiScaleControl.new(160))

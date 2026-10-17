@@ -15,6 +15,7 @@ func _init(width := 200) -> void:
 	slider.max_value = Themes.SCALE_MAX * 100
 	slider.step = Themes.SCALE_STEP * 100
 	slider.scrollable = false
+	slider.accessibility_name = tr("UI scale")
 	slider.custom_minimum_size.x = width
 	slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	add_child(slider)
@@ -32,6 +33,13 @@ func _init(width := 200) -> void:
 		if not _dragging:
 			apply())
 	EventBus.ui_scale_changed.connect(sync)
+
+
+func _notification(what: int) -> void:
+	# Hidden or removed mid-drag (a shortcut switches screens): the slider never sends drag_ended.
+	if _dragging and (what == NOTIFICATION_EXIT_TREE or (what == NOTIFICATION_VISIBILITY_CHANGED and not is_visible_in_tree())):
+		_dragging = false
+		apply()
 
 
 ## Applies and saves the slider's value if it isn't the current scale already.

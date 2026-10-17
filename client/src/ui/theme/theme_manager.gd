@@ -36,9 +36,17 @@ func _ready() -> void:
 	get_tree().root.size_changed.connect(_apply_scale)
 
 
+## Re-reads the theme folders. The active theme stays listed (marked as removed, so it can't be
+## picked) when its file is gone, so theme pickers don't show another theme than the one in use.
 func discover() -> void:
 	var problems: Array[String] = []
-	definitions = load_definitions([[BUILTIN_DIR, true], [USER_DIR, false]], problems)
+	var found := load_definitions([[BUILTIN_DIR, true], [USER_DIR, false]], problems)
+	if not found.has(theme_id) and definitions.has(theme_id):
+		var removed: Dictionary = definitions[theme_id].duplicate()
+		removed["ok"] = false
+		removed["error"] = "file removed"
+		found[theme_id] = removed
+	definitions = found
 	for problem in problems:
 		push_warning(problem)
 

@@ -86,7 +86,7 @@ func show_page(page: String) -> void:
 
 ## Screens stay alive: coming back picks up themes added to the themes folder meanwhile.
 func _on_visibility_changed() -> void:
-	if visible and _current == "appearance":
+	if is_visible_in_tree() and _current == "appearance":
 		_rebuild_current()
 
 
@@ -133,16 +133,11 @@ func _config_switch(section: String, key: String, default: bool, title: String, 
 
 func _build_appearance() -> void:
 	_page_header(tr("Appearance"), tr("Themes only change design tokens. Community themes go into the themes folder."))
-	Themes.discover()
 	var box := _section(tr("Theme"))
 	var themes := OptionButton.new()
-	for entry in Themes.available_themes():
-		themes.add_item(str(entry["name"]) + ("" if entry["builtin"] else " (" + tr("community") + ")"))
-		var index := themes.item_count - 1
-		themes.set_item_metadata(index, entry["id"])
-		themes.set_item_disabled(index, not str(entry["error"]).is_empty())
-		if entry["id"] == Themes.theme_id:
-			themes.select(index)
+	_fill_themes(themes)
+	# "Open themes folder", drop a file in, open the dropdown: it is listed.
+	themes.get_popup().about_to_popup.connect(_fill_themes.bind(themes))
 	themes.item_selected.connect(func(index: int) -> void: Themes.apply(themes.get_item_metadata(index)))
 	box.add_child(_setting_row(tr("Theme"), tr("Midnight Dark, Classic Light, High Contrast or a community theme."), themes))
 	var folder := Button.new()
@@ -156,6 +151,19 @@ func _build_appearance() -> void:
 	reduce.button_pressed = Themes.reduce_motion
 	reduce.toggled.connect(Themes.set_reduce_motion)
 	box.add_child(_setting_row(tr("Reduce motion"), tr("No slides or bouncing; HP bars jump to the new value."), reduce))
+
+
+## Lists the themes in the folders now, with the active one selected.
+func _fill_themes(themes: OptionButton) -> void:
+	Themes.discover()
+	themes.clear()
+	for entry in Themes.available_themes():
+		themes.add_item(str(entry["name"]) + ("" if entry["builtin"] else " (" + tr("community") + ")"))
+		var index := themes.item_count - 1
+		themes.set_item_metadata(index, entry["id"])
+		themes.set_item_disabled(index, not str(entry["error"]).is_empty())
+		if entry["id"] == Themes.theme_id:
+			themes.select(index)
 
 
 # --- Notifications ----------------------------------------------------------------------------
