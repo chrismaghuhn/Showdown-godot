@@ -17,18 +17,19 @@ var dir := ""
 var error := ""
 
 
-## Loads the manifest of every plugin folder in `dirs`, in search order. A later plugin
-## with an id that was already found is marked invalid, so the first copy always wins.
+## Loads the manifest of every plugin folder in `dirs`, in search order. The first loadable
+## copy of an id wins; later loadable copies are marked invalid as duplicates.
 static func load_all(dirs: PackedStringArray) -> Array[PluginManifest]:
 	var result: Array[PluginManifest] = []
 	var first_dir := {}
 	for base in dirs:
 		for sub in DirAccess.get_directories_at(base):
 			var m := load_from_dir(base.path_join(sub))
-			if not first_dir.has(m.id):
-				first_dir[m.id] = m.dir
-			elif m.is_valid():
-				m.error = "duplicate id, already provided by %s" % first_dir[m.id]
+			if m.is_valid():
+				if first_dir.has(m.id):
+					m.error = "duplicate id, already provided by %s" % first_dir[m.id]
+				else:
+					first_dir[m.id] = m.dir
 			result.append(m)
 	return result
 
@@ -51,8 +52,8 @@ static func load_from_dir(plugin_dir: String) -> PluginManifest:
 	var api_version: Variant = data.get("api_version", 0)
 	var entry: Variant = data.get("entry", "main.gd")
 	var permissions: Variant = data.get("permissions", [])
-	if not (api_version is float or api_version is int):
-		m.error = "\"api_version\" must be a number"
+	if not (api_version is float or api_version is int) or fmod(api_version, 1.0) != 0.0:
+		m.error = "\"api_version\" must be a whole number"
 		return m
 	if not entry is String:
 		m.error = "\"entry\" must be a string"
@@ -83,12 +84,14 @@ static func load_from_dir(plugin_dir: String) -> PluginManifest:
 
 
 ## True if `entry` is a relative path to a .gd file that stays inside `plugin_dir`.
+## A lexical check (defence in depth), not a sandbox: plugin code still runs unrestricted (#29).
 static func is_entry_inside(plugin_dir: String, entry: String) -> bool:
 	if entry.get_extension() != "gd" or entry.begins_with("/") or entry.contains(":") \
 			or entry.contains("\\") or ".." in entry.split("/"):
 		return false
-	var folder := plugin_dir.simplify_path().trim_suffix("/") + "/"
-	return plugin_dir.path_join(entry).simplify_path().begins_with(folder)
+	# Simplify once and join onto that: simplify_path() turns "C:\\a" into "C:/a".
+	var folder := plugin_dir.simplify_path()
+	return folder.path_join(entry).simplify_path().begins_with(folder.trim_suffix("/") + "/")
 
 
 func is_valid() -> bool:

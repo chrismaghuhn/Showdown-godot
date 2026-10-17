@@ -86,8 +86,8 @@ its UI comes from.
   (Linux: `~/.local/share/godot/app_userdata/Showdown Desktop/plugins/`).
 - During development: `tools/run_client.sh` loads the repo's `plugins/` folder.
   Enable plugins with `--enable-plugins=id1,id2`.
-- If the same id is found twice, the installed copy wins and the other one is listed as
-  not loadable ("duplicate id").
+- If the same id is found twice, the first loadable copy wins (installed before development)
+  and any other loadable copy is listed as not loadable ("duplicate id").
 
 A plugin that raises an engine or script error is **paused**: it is switched off, the user
 sees "<name> paused" with "Reload plugin" / "Disable", and the battle goes on.

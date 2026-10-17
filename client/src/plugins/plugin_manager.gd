@@ -69,11 +69,16 @@ func is_active(id: String) -> bool:
 	return _active.has(id)
 
 
+## The loadable manifest for `id`, else the first one with that id, else null.
 func get_manifest(id: String) -> PluginManifest:
+	var first: PluginManifest = null
 	for m in manifests:
 		if m.id == id:
-			return m
-	return null
+			if m.is_valid():
+				return m
+			if first == null:
+				first = m
+	return first
 
 
 func enable(id: String) -> bool:

@@ -129,7 +129,7 @@ func _build_ui() -> void:
 	for m in Plugins.manifests:
 		var label := Label.new()
 		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		var state := tr("active") if Plugins.is_active(m.id) else (m.error if not m.is_valid() else tr("disabled"))
+		var state := m.error if not m.is_valid() else (tr("active") if Plugins.is_active(m.id) else tr("disabled"))
 		label.text = "%s %s - %s" % [m.name, m.version, state]
 		sidebar.add_child(label)
 
