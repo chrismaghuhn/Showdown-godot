@@ -39,6 +39,7 @@ func _ready() -> void:
 	EventBus.battle_started.connect(_on_battle_started)
 	EventBus.battle_updated.connect(_on_battle_updated)
 	EventBus.battle_request.connect(_on_battle_request)
+	EventBus.room_left.connect(_on_room_left)
 	EventBus.data_loaded.connect(_on_data_loaded)
 	EventBus.data_failed.connect(func(r: String) -> void: _print_line(tr("Game data: %s") % r, COLOR_ERROR))
 	if GameData.dex != null:
@@ -238,10 +239,7 @@ func _on_data_loaded(dex: Dex) -> void:
 func _on_battle_started(battle: BattleState) -> void:
 	_current_battle = battle.room_id
 	_print_line(tr("Battle started: %s") % battle.room_id, COLOR_SYSTEM)
-	for child in _sprite_row.get_children():
-		child.queue_free()
-	_sprites.clear()
-	_sprite_keys.clear()
+	_clear_sprites()
 	_update_battle_info(battle)
 
 
@@ -254,6 +252,38 @@ func _on_battle_updated(battle: BattleState, msg: PSMessage) -> void:
 	_update_battle_info(battle)
 	if battle.ended:
 		_clear_actions()
+
+
+## Only leaving the room ends "the current battle": an ended battle's room still takes chat
+## (and /savereplay) until it is left. Then the console follows another running battle (one
+## waiting for our choice first), or the command box sends globally again.
+func _on_room_left(room_id: String) -> void:
+	if room_id != _current_battle:
+		return
+	_current_battle = ""
+	_clear_actions()
+	_clear_sprites()
+	_battle_info.text = ""
+	var next: BattleState = null
+	for battle: BattleState in Rooms.battles.values():
+		if battle.room_id == room_id or battle.ended:
+			continue
+		if next == null or (battle.awaiting_choice and not next.awaiting_choice):
+			next = battle
+	if next == null:
+		return
+	_current_battle = next.room_id
+	_print_line(tr("Now showing battle: %s") % next.room_id, COLOR_SYSTEM)
+	_update_battle_info(next)
+	if next.awaiting_choice:
+		_on_battle_request(next, next.request)
+
+
+func _clear_sprites() -> void:
+	for child in _sprite_row.get_children():
+		child.queue_free()
+	_sprites.clear()
+	_sprite_keys.clear()
 
 
 func _update_battle_info(battle: BattleState) -> void:
@@ -313,25 +343,26 @@ func _on_battle_request(battle: BattleState, request: Dictionary) -> void:
 
 	var active: Array = request.get("active", [])
 	var force_switch: Array = request.get("forceSwitch", [])
-	var trapped := false
 	if not active.is_empty() and force_switch.is_empty():
-		var slot: Dictionary = active[0]
-		trapped = slot.get("trapped", false) or slot.get("maybeTrapped", false)
-		var moves: Array = slot.get("moves", [])
+		var moves: Array = active[0].get("moves", [])
 		for i in moves.size():
 			var move: Dictionary = moves[i]
 			var button := _add_action(_move_label(move, battle), battle.room_id, "move %d" % (i + 1), rqid)
 			button.disabled = move.get("disabled", false) or int(move.get("pp", 1)) <= 0
 
-	if trapped:
-		return
+	# Same rules as the battle screen: "maybeTrapped" still allows switching, and Revival
+	# Blessing picks a fainted Pokémon.
+	var label := tr("Revive %s (%s)") if BattleChoices.is_reviving(request) else tr("Switch to %s (%s)")
 	var team: Array = request.get("side", {}).get("pokemon", [])
 	for i in team.size():
-		var mon: Dictionary = team[i]
-		var condition := str(mon.get("condition", ""))
-		if mon.get("active", false) or condition.ends_with(" fnt"):
+		var entry: Dictionary = team[i]
+		var condition := str(entry.get("condition", ""))
+		var mon := BattlePokemon.new()
+		mon.active = entry.get("active", false)
+		mon.apply_condition(condition)
+		if not BattleChoices.can_switch_to(request, mon):
 			continue
-		_add_action(tr("Switch to %s (%s)") % [str(mon.get("details", "")).get_slice(",", 0), condition],
+		_add_action(label % [str(entry.get("details", "")).get_slice(",", 0), condition],
 			battle.room_id, "switch %d" % (i + 1), rqid)
 
 
@@ -369,6 +400,7 @@ func _add_action(text: String, room_id: String, choice: String, rqid: int) -> Bu
 		Connection.choose(room_id, choice, rqid)
 		_clear_actions())
 	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	button.set_meta(&"choice", choice)
 	_actions.add_child(button)
 	return button
 
