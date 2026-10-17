@@ -50,9 +50,9 @@ func test_header_status() -> void:
 	assert_eq(ConnectionFlow.status_label(_status({"state": Connection.State.WAITING, "reconnecting": true}))["text"],
 		"Offline", "reconnecting shows Offline (design frame 03)")
 	assert_eq(ConnectionFlow.status_label(_status({"state": Connection.State.CONNECTING}))["text"], "Connecting…", "connecting")
-	assert_eq(ConnectionFlow.status_label(_status({}))["text"], "Sign in", "guest")
+	assert_eq(ConnectionFlow.status_label(_status({}))["text"], "Online · sim3", "connected")
 	assert_eq(ConnectionFlow.status_label(_status({"signed_in": true, "username": "Alice"})),
-		{"text": "Alice", "color_token": "color.success.text"}, "signed in")
+		{"text": "Online · sim3", "color_token": "color.success.text"}, "signed in: the account shows the name")
 
 
 func test_texts() -> void:

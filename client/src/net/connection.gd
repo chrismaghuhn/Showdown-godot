@@ -140,6 +140,15 @@ func send(room_id: String, text: String) -> void:
 ## Sends a battle decision, e.g. choose("battle-gen9randombattle-1", "move 2", 3).
 func choose(room_id: String, choice: String, rqid := -1) -> void:
 	send(room_id, "/choose %s|%d" % [choice, rqid] if rqid >= 0 else "/choose " + choice)
+	if state == State.CONNECTED:
+		EventBus.choice_sent.emit(room_id, choice)
+
+
+## Takes the last choice back while the turn hasn't started.
+func undo_choice(room_id: String) -> void:
+	send(room_id, "/undo")
+	if state == State.CONNECTED:
+		EventBus.choice_undone.emit(room_id)
 
 
 ## Signs in as soon as the server's challstr is known. Empty password = an unregistered name

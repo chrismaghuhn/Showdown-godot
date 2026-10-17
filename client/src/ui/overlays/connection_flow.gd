@@ -65,16 +65,16 @@ static func banner_for(status: Dictionary) -> Dictionary:
 	return {}
 
 
-## The status in the app header: {text, color_token}.
+## The connection pill in the app header: {text, color_token} - "Online · sim3",
+## "Connecting…" or "Offline" (also while reconnecting, design frame 03).
 static func status_label(status: Dictionary) -> Dictionary:
 	var state := int(status.get("state", 0))
 	if status.get("reconnecting", false) or state == Connection.State.DISCONNECTED:
 		return {"text": _t("Offline"), "color_token": "color.warning.text"}
 	if state != Connection.State.CONNECTED or not status.get("session_up", true):
 		return {"text": _t("Connecting…"), "color_token": "color.text.muted"}
-	if status.get("signed_in", false):
-		return {"text": str(status.get("username", "")), "color_token": "color.success.text"}
-	return {"text": _t("Sign in"), "color_token": "color.text.muted"}
+	var host := str(status.get("server_host", "")).get_slice(".", 0).get_slice(":", 0)
+	return {"text": _t("Online · %s") % host, "color_token": "color.success.text"}
 
 
 ## "sim3.psim.us · attempt 1", or "sim3.psim.us · attempt 2 of 5 in 4 s" while waiting.
