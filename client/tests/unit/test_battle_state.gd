@@ -103,4 +103,3 @@ func test_request_sets_own_side() -> void:
 	assert_eq(chomp.hp, 250, "hp")
 	assert_eq(chomp.max_hp, 301, "max hp")
 	assert_eq(chomp.moves, PackedStringArray(["earthquake", "outrage"]), "moves")
-

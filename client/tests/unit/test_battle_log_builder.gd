@@ -92,4 +92,3 @@ func test_spectator_keeps_neutral_names() -> void:
 		"|move|p1a: Ghold|Shadow Ball|"
 	var entries := _replay(replay, "ironquill")
 	assert_eq(entries.back()["text"], "Ghold used [b]Shadow Ball[/b]!", "no opposing prefix for spectators")
-
