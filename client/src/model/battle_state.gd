@@ -20,6 +20,8 @@ var sides := {}
 var weather := ""
 ## Turn the current weather started (for "turns left").
 var weather_turn := 0
+## The current weather was set by an ability ("[from] ability: Drizzle").
+var _weather_from_ability := false
 var field_conditions := PackedStringArray()
 ## Field condition -> turn it started.
 var field_turns := {}
@@ -174,8 +176,11 @@ func apply(msg: PSMessage) -> void:
 					mon.boosts.clear()
 		"-weather":
 			var new_weather := "" if msg.arg(0) == "none" else msg.arg(0)
-			if new_weather != weather and not msg.kwargs.has("upkeep"):
+			# Every -weather but the [upkeep] reminder (re)starts it: before gen 6 Drizzle can
+			# make a Rain Dance's rain permanent.
+			if not msg.kwargs.has("upkeep"):
 				weather_turn = _effect_start_turn()
+				_weather_from_ability = str(msg.kwargs.get("from", "")).begins_with("ability: ")
 			weather = new_weather
 		"-fieldstart":
 			var effect := effect_name(msg.arg(0))
@@ -268,8 +273,8 @@ func _apply_timer(text: String) -> void:
 		timer_on = true
 
 
-## Turns left for a 5-turn effect that started in `start_turn` (estimate: 5 turns, items
-## like Light Clay or Damp Rock extend it to 8 and are not detected).
+## Turns left for an effect that started in `start_turn` and lasts `duration` turns (see
+## effect_duration(); items like Light Clay or Damp Rock extend it to 8 and are not detected).
 func turns_left(start_turn: int, duration := 5) -> int:
 	return clampi(duration - (turn - start_turn), 0, duration)
 
@@ -326,9 +331,20 @@ func claim_side_by_name(username: String) -> void:
 			return
 
 
-## Turns left for the current weather; -1 for weathers that last until their setter leaves.
+## Turns left for the current weather; -1 for weathers without a duration: Desolate Land and
+## the like, and weather set by an ability before gen 6.
 func weather_turns_left() -> int:
-	return -1 if weather in ENDLESS_WEATHERS else turns_left(weather_turn)
+	if weather in ENDLESS_WEATHERS or (_weather_from_ability and gen > 0 and gen <= 5):
+		return -1
+	return turns_left(weather_turn)
+
+
+## How many turns a timed effect lasts, counting the turn it started: 5, except Tailwind
+## (3 turns in gen 4, 4 later).
+static func effect_duration(effect: String, generation := 0) -> int:
+	if effect == "Tailwind":
+		return 3 if generation == 4 else 4
+	return 5
 
 
 ## The turn a new effect counts from: its first countdown is this turn's upkeep, or the next

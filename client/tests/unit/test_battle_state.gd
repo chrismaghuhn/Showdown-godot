@@ -76,6 +76,31 @@ func test_effects_before_turn_one_or_after_upkeep_count_from_the_next_turn() -> 
 	assert_eq(b.turns_left(int(b.side("p1").conditions["Reflect"]["turn"])), 4, "screen started during the turn")
 
 
+func test_ability_weather_has_no_countdown_before_gen_6() -> void:
+	var b := _battle("|gen|5\n|-weather|RainDance|[from] ability: Drizzle|[of] p1a: Politoed\n|turn|1")
+	assert_eq(b.weather_turns_left(), -1, "gen 5 Drizzle")
+	b.apply(PSParser.parse_line("battle-test", "|-weather|SunnyDay"))
+	assert_eq(b.weather_turns_left(), 5, "gen 5 Sunny Day lasts 5 turns")
+	b = _battle("|gen|9\n|-weather|RainDance|[from] ability: Drizzle|[of] p1a: Pelipper\n|turn|1")
+	assert_eq(b.weather_turns_left(), 5, "gen 9 Drizzle lasts 5 turns")
+	b = _battle("|-weather|RainDance|[from] ability: Drizzle|[of] p1a: Pelipper\n|turn|1")
+	assert_eq(b.weather_turns_left(), 5, "unknown gen counts like a modern one")
+	b = _battle("|gen|5\n|turn|2\n|-weather|RainDance\n|upkeep|\n|turn|3\n" +
+		"|-weather|RainDance|[upkeep]\n|-weather|RainDance|[from] ability: Drizzle|[of] p1a: Politoed")
+	assert_eq(b.weather_turns_left(), -1, "gen 5 Drizzle makes a Rain Dance's rain permanent")
+
+
+func test_tailwind_lasts_four_turns() -> void:
+	var b := _battle("|gen|9\n|turn|3\n|-sidestart|p1: Ash|move: Tailwind")
+	var start := int(b.side("p1").conditions["Tailwind"]["turn"])
+	assert_eq(b.turns_left(start, BattleState.effect_duration("Tailwind", b.gen)), 4, "turn it was used")
+	b.apply(PSParser.parse_line("battle-test", "|upkeep|"))
+	b.apply(PSParser.parse_line("battle-test", "|turn|4"))
+	assert_eq(b.turns_left(start, BattleState.effect_duration("Tailwind", b.gen)), 3, "next turn")
+	assert_eq(BattleState.effect_duration("Tailwind", 4), 3, "gen 4 Tailwind")
+	assert_eq(BattleState.effect_duration("Reflect", 9), 5, "other effects")
+
+
 func test_extreme_weather_has_no_countdown() -> void:
 	var b := _battle("|-weather|DesolateLand|[from] ability: Desolate Land|[of] p1a: Groudon\n|turn|1")
 	assert_eq(b.weather_turns_left(), -1, "Desolate Land")

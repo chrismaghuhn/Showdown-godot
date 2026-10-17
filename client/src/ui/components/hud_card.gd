@@ -116,7 +116,7 @@ func show_pokemon(mon: BattlePokemon, side: BattleSide, battle: BattleState, dex
 		if condition in FieldConditions.LAYERED:
 			count = "×%d" % int(info["layers"])
 		elif condition in FieldConditions.TIMED:
-			count = str(battle.turns_left(int(info["turn"])))
+			count = str(battle.turns_left(int(info["turn"]), BattleState.effect_duration(condition, battle.gen)))
 		_conditions.add_child(ConditionChip.new(condition, FieldConditions.icon(condition), count, true))
 	var has_conditions := _conditions.get_child_count() > 0
 	_separator.visible = has_conditions
