@@ -660,7 +660,6 @@ func _refresh_choices(mine: BattleSide, my_active: BattlePokemon, opp_active: Ba
 
 	# Switches (own team in request order)
 	var team: Array = _request.get("side", {}).get("pokemon", [])
-	var trapped: bool = active_req.get("trapped", false) or active_req.get("maybeTrapped", false)
 	_switch_caption.visible = not team.is_empty()
 	_slots.visible = not team.is_empty()
 	for i in 6:
@@ -675,7 +674,7 @@ func _refresh_choices(mine: BattleSide, my_active: BattlePokemon, opp_active: Ba
 			continue
 		var species: DexSpecies = dex.get_species(mon.species) if dex != null else null
 		var tint := Themes.color("color.type.%s.bg" % species.types[0].to_lower()) if species != null else Themes.color("color.surface.hover")
-		var can_switch: bool = choosing and not mon.active and not mon.fainted and (not trapped or force_switch)
+		var can_switch: bool = choosing and BattleChoices.can_switch_to(_request, mon)
 		slot.show_pokemon(mon, true, tint, "Shift+%d" % (i + 1) if can_switch else "")
 		slot.disabled = not (can_switch or (team_preview and choosing))
 		slot.modulate.a = 0.6 if (_waiting and not mon.active) else 1.0
