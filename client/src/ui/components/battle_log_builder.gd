@@ -54,9 +54,9 @@ func push(msg: PSMessage, battle: BattleState) -> void:
 		"-boost", "-unboost":
 			_on_boost(msg, battle)
 		"-status":
-			_row("%s is now %s." % [_name(msg.arg(0), battle, false), esc(msg.arg(1).to_upper())], true)
+			_row("%s is now %s." % [_name(msg.arg(0), battle, true), esc(msg.arg(1).to_upper())], true)
 		"-curestatus":
-			_row("%s was cured of %s." % [_name(msg.arg(0), battle, false), esc(msg.arg(1).to_upper())], true)
+			_row("%s was cured of %s." % [_name(msg.arg(0), battle, true), esc(msg.arg(1).to_upper())], true)
 		"faint":
 			_row("%s fainted!" % _name(msg.arg(0), battle, true))
 		"-weather":
@@ -79,11 +79,11 @@ func push(msg: PSMessage, battle: BattleState) -> void:
 		"-terastallize":
 			_row("%s has Terastallized into the %s-type!" % [_name(msg.arg(0), battle, true), b(msg.arg(1))])
 		"-start":
-			_row("%s: %s" % [_name(msg.arg(0), battle, false), esc(BattleState.effect_name(msg.arg(1)))], true)
+			_row("%s: %s" % [_name(msg.arg(0), battle, true), esc(BattleState.effect_name(msg.arg(1)))], true)
 		"-end":
-			_row("%s: %s ended" % [_name(msg.arg(0), battle, false), esc(BattleState.effect_name(msg.arg(1)))], true)
+			_row("%s: %s ended" % [_name(msg.arg(0), battle, true), esc(BattleState.effect_name(msg.arg(1)))], true)
 		"-miss":
-			_row("%s avoided the attack!" % _name(msg.arg(1), battle, false), true)
+			_row("%s avoided the attack!" % _name(msg.arg(1), battle, true), true)
 		"-fail":
 			_row("But it failed!", true)
 		"-immune":
@@ -91,11 +91,11 @@ func push(msg: PSMessage, battle: BattleState) -> void:
 		"cant":
 			_row("%s can't move (%s)." % [_name(msg.arg(0), battle, true), esc(BattleState.effect_name(msg.arg(1)))])
 		"-item":
-			_row("%s's item: %s" % [_name(msg.arg(0), battle, false), b(msg.arg(1))], true)
+			_row("%s's item: %s" % [_name(msg.arg(0), battle, true), b(msg.arg(1))], true)
 		"-enditem":
-			_row("%s's %s was used up." % [_name(msg.arg(0), battle, false), esc(msg.arg(1))], true)
+			_row("%s's %s was used up." % [_name(msg.arg(0), battle, true), esc(msg.arg(1))], true)
 		"-ability":
-			_row("%s's Ability: %s" % [_name(msg.arg(0), battle, false), b(msg.arg(1))], true)
+			_row("%s's Ability: %s" % [_name(msg.arg(0), battle, true), b(msg.arg(1))], true)
 		"-message", "-hint":
 			_row(esc(msg.arg(0)), true)
 		"win":
@@ -151,7 +151,7 @@ func _on_boost(msg: PSMessage, battle: BattleState) -> void:
 	if _last_boost_ident == msg.arg(0) and not _last_boost_row.is_empty():
 		_last_boost_row["chips"].append(chip)
 		return
-	_last_boost_row = _row(_name(msg.arg(0), battle, false), true)
+	_last_boost_row = _row(_name(msg.arg(0), battle, true), true)
 	_last_boost_row["chips"].append(chip)
 	_last_boost_ident = msg.arg(0)
 

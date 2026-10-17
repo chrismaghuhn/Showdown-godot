@@ -15,6 +15,7 @@ var _type_badge := TypeBadge.new()
 var _pp_label := Label.new()
 var _hotkey := Label.new()
 var _pp_text := ""
+var _unavailable_reason := ""
 var _chosen := false
 
 
@@ -75,6 +76,7 @@ func setup(move_name: String, type: String, category: String, pp: int, max_pp: i
 	_category_icon.icon_name = "ui-" + category.to_lower() if category in ["Physical", "Special", "Status"] else ""
 	_type_badge.type_name = type
 	_pp_text = "%d/%d" % [pp, max_pp] if max_pp > 0 else ""
+	_unavailable_reason = ""
 	_pp_label.text = _pp_text
 	_hotkey.text = hotkey
 	theme_type_variation = StringName("MoveButton_" + PSParser.to_id(type))
@@ -87,6 +89,7 @@ func setup(move_name: String, type: String, category: String, pp: int, max_pp: i
 ## Disables the button and shows why instead of the PP (e.g. "Disabled", "Taunted").
 func set_unavailable(reason: String) -> void:
 	disabled = true
+	_unavailable_reason = reason
 	_pp_label.text = reason
 
 
@@ -95,7 +98,10 @@ func set_chosen(chosen: bool) -> void:
 	_chosen = chosen
 	toggle_mode = true
 	button_pressed = chosen
-	_pp_label.text = tr("Chosen") if chosen else _pp_text
+	if chosen:
+		_pp_label.text = tr("Chosen")
+	else:
+		_pp_label.text = _unavailable_reason if not _unavailable_reason.is_empty() else _pp_text
 	queue_redraw()
 
 
