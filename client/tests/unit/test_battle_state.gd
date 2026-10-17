@@ -83,6 +83,11 @@ func test_ability_weather_has_no_countdown_before_gen_6() -> void:
 	assert_eq(b.weather_turns_left(), 5, "gen 5 Sunny Day lasts 5 turns")
 	b = _battle("|gen|9\n|-weather|RainDance|[from] ability: Drizzle|[of] p1a: Pelipper\n|turn|1")
 	assert_eq(b.weather_turns_left(), 5, "gen 9 Drizzle lasts 5 turns")
+	b = _battle("|-weather|RainDance|[from] ability: Drizzle|[of] p1a: Pelipper\n|turn|1")
+	assert_eq(b.weather_turns_left(), 5, "unknown gen counts like a modern one")
+	b = _battle("|gen|5\n|turn|2\n|-weather|RainDance\n|upkeep|\n|turn|3\n" +
+		"|-weather|RainDance|[upkeep]\n|-weather|RainDance|[from] ability: Drizzle|[of] p1a: Politoed")
+	assert_eq(b.weather_turns_left(), -1, "gen 5 Drizzle makes a Rain Dance's rain permanent")
 
 
 func test_tailwind_lasts_four_turns() -> void:
