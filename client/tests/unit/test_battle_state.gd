@@ -213,6 +213,48 @@ func test_formechange_keeps_level_and_gender() -> void:
 	assert_eq(mon.gender, "M", "gender")
 
 
+func test_replace_moves_reveals_made_while_disguised() -> void:
+	var b := _battle("|switch|p2a: Pikachu|Pikachu, L88, F|100/100\n|move|p2a: Pikachu|Thunderbolt|p1a: X\n" +
+		"|switch|p2a: Snorlax|Snorlax|100/100\n|switch|p2a: Pikachu|Pikachu, L88, F|100/100\n" +
+		"|move|p2a: Pikachu|Night Daze|p1a: X\n|-damage|p2a: Pikachu|90/100|[from] item: Life Orb\n" +
+		"|replace|p2a: Zoroark|Zoroark, L84, M")
+	var zoroark: BattlePokemon = b.side("p2").pokemon["Zoroark"]
+	var pikachu: BattlePokemon = b.side("p2").pokemon["Pikachu"]
+	assert_eq(zoroark.revealed_moves, PackedStringArray(["Night Daze"]), "Zoroark's move")
+	assert_eq(zoroark.item, "Life Orb", "Zoroark's item")
+	assert_eq(pikachu.revealed_moves, PackedStringArray(["Thunderbolt"]), "Pikachu keeps its own moves")
+	assert_eq(pikachu.item, "", "Pikachu's item is unknown again")
+
+
+func test_copied_ability_ends_on_switch_out() -> void:
+	var b := _battle("|switch|p1a: Gyarados|Gyarados|100/100\n|switch|p2a: Gardevoir|Gardevoir|100/100\n" +
+		"|-ability|p2a: Gardevoir|Intimidate|[from] ability: Trace|[of] p1a: Gyarados")
+	var gardevoir := b.side("p2").active_pokemon()
+	assert_eq(gardevoir.ability, "Intimidate", "traced ability while in")
+	assert_eq(gardevoir.base_ability, "Trace", "own ability remembered")
+	b.apply(PSParser.parse_line("battle-test", "|switch|p2a: Snorlax|Snorlax|100/100"))
+	assert_eq(gardevoir.ability, "Trace", "Trace again after switching out")
+	assert_eq(gardevoir.base_ability, "", "nothing copied any more")
+
+
+func test_shell_bell_magician_and_fling_reveal_the_right_holder() -> void:
+	var b := _battle("|switch|p1a: X|Scizor|100/100\n|switch|p2a: Y|Blissey|50/100\n" +
+		"|-heal|p1a: X|100/100|[from] item: Shell Bell|[of] p2a: Y")
+	assert_eq(b.side("p1").active_pokemon().item, "Shell Bell", "Shell Bell belongs to the healed Pokémon")
+	assert_eq(b.side("p2").active_pokemon().item, "", "not to the foe it hit")
+
+	b = _battle("|switch|p1a: Klefki|Klefki|100/100\n|switch|p2a: Y|Blissey|100/100\n" +
+		"|-heal|p2a: Y|100/100|[from] item: Leftovers\n" +
+		"|-item|p1a: Klefki|Leftovers|[from] ability: Magician|[of] p2a: Y")
+	assert_eq(b.side("p2").active_pokemon().item, "", "Magician's victim lost its item")
+
+	b = _battle("|switch|p1a: X|Ambipom|100/100\n|switch|p2a: Y|Blissey|40/100\n" +
+		"|-heal|p2a: Y|46/100|[from] item: Leftovers\n|move|p1a: X|Fling|p2a: Y\n" +
+		"|-heal|p2a: Y|71/100|[from] item: Sitrus Berry\n|-enditem|p1a: X|Sitrus Berry|[from] move: Fling")
+	assert_eq(b.side("p2").active_pokemon().item, "Leftovers", "a flung berry isn't the target's item")
+	assert_eq(b.side("p1").active_pokemon().item, "", "the flinger's item is gone")
+
+
 func test_replace_moves_the_disguise_state_to_the_revealed_pokemon() -> void:
 	var b := _battle("|switch|p2a: Pikachu|Pikachu, L88, F|50/100 par\n|switch|p2a: Snorlax|Snorlax|100/100\n" +
 		"|switch|p2a: Pikachu|Pikachu, L88, F|100/100\n|-damage|p2a: Pikachu|40/100\n" +
