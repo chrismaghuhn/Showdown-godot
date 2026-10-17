@@ -10,7 +10,7 @@ extends Node
 ## for the bell in the app header; `unread` counts what came in since the bell was last opened.
 
 const SECTION := "notifications"
-## A battle that starts this soon after we were searching counts as "battle found".
+## A battle that starts this soon after our search ended counts as "battle found".
 const SEARCH_GRACE_MS := 15000
 const HISTORY_SIZE := 30
 
@@ -22,7 +22,11 @@ var _challenge_toasts := {}
 
 var _sound_and_desktop := true
 var _current_screen := &""
-var _last_searching_ms := -1
+var _searching := false
+## When the last search ended (matched or cancelled); -1 = none since the last battle found.
+var _search_ended_ms := -1
+## Milliseconds since start; tests swap it to let time pass.
+var _clock := Time.get_ticks_msec
 var _notified_rqid := {}
 var _timer_warned := {}
 
@@ -138,8 +142,14 @@ func send_test() -> void:
 func _on_message(msg: PSMessage) -> void:
 	if msg.type == "updatesearch":
 		var data: Variant = JSON.parse_string(msg.arg(0))
-		if data is Dictionary and not (data.get("searching", []) as Array).is_empty():
-			_last_searching_ms = Time.get_ticks_msec()
+		if not data is Dictionary:
+			return
+		# The server sends |updatesearch| only when the search changes: a match ends the search
+		# right before the battle's |init|, however long the search took.
+		var searching := not (data.get("searching", []) as Array).is_empty()
+		if _searching and not searching:
+			_search_ended_ms = _clock.call()
+		_searching = searching
 
 
 func _on_screen_changed(screen: StringName) -> void:
@@ -150,9 +160,12 @@ func _on_screen_changed(screen: StringName) -> void:
 
 
 func _on_battle_started(battle: BattleState) -> void:
-	if _last_searching_ms < 0 or Time.get_ticks_msec() - _last_searching_ms > SEARCH_GRACE_MS:
+	# A match lists its room in |updatesearch| "games" before the |init|; a battle we just
+	# opened (spectating) isn't ours. Battles coming back (reconnect, restart) weren't found.
+	if battle.restored or not Rooms.games.has(battle.room_id) or _search_ended_ms < 0 \
+			or _clock.call() - _search_ended_ms > SEARCH_GRACE_MS:
 		return
-	_last_searching_ms = -1
+	_search_ended_ms = -1
 	var format := battle.room_id.get_slice("-", 1)
 	post("battle_found", tr("Battle found"), tr("%s · opening the battle") % format,
 		[[tr("Open battle"), _go_to_battle.bind(battle.room_id)], [tr("Stay here"), Callable()]],
@@ -167,6 +180,7 @@ func _on_battle_request(battle: BattleState, request: Dictionary) -> void:
 	if _notified_rqid.get(battle.room_id, -2) == rqid:
 		return
 	_notified_rqid[battle.room_id] = rqid
+	# The server sends the turn's log (|turn|N) before its |request|, so battle.turn is the turn asked for.
 	post("your_turn", tr("Your turn · Turn %d") % maxi(battle.turn, 1), _battle_line(battle),
 		[[tr("Go to battle"), _go_to_battle.bind(battle.room_id)]], "your_turn:" + battle.room_id, _on_battle_screen(battle))
 
@@ -188,8 +202,14 @@ func _on_battle_updated(battle: BattleState, msg: PSMessage) -> void:
 func _on_battle_ended(battle: BattleState, winner: String) -> void:
 	for prefix in ["your_turn:", "timer_low:"]:
 		EventBus.toast_dismissed.emit(prefix + battle.room_id)
+	# A result already in the log when we opened the battle is old news; one that came in while
+	# a battle we followed was away (reconnect, restart) is not.
+	if Rooms.replaying and not battle.restored:
+		return
 	var title := tr("The battle ended in a tie")
-	if not winner.is_empty():
+	if not winner.is_empty() and battle.my_side.is_empty():
+		title = tr("%s won") % winner
+	elif not winner.is_empty():
 		title = tr("You won") if PSParser.to_id(winner) == PSParser.to_id(Connection.username) else tr("You lost")
 	post("battle_ended", title, _battle_line(battle), [], "battle_ended:" + battle.room_id, _on_battle_screen(battle))
 
@@ -218,7 +238,8 @@ func _on_private_message(from: String, to: String, text: String) -> void:
 
 func _on_chat_message(room_id: String, user: String, text: String) -> void:
 	var sender := user.substr(1) if not user.is_empty() and PSParser.to_id(user[0]).is_empty() else user
-	if NotificationEvents.is_mention(sender, text, Connection.username):
+	# The backlog sent on joining (and a battle's replayed log) holds old mentions.
+	if not Rooms.replaying and NotificationEvents.is_mention(sender, text, Connection.username):
 		post("mention", tr("%s mentioned you") % sender, text)
 
 

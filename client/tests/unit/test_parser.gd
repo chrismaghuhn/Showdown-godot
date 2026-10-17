@@ -46,3 +46,15 @@ func test_plain_text_lines() -> void:
 
 func test_to_id() -> void:
 	assert_eq(PSParser.to_id("Mr. Mime-Galar!"), "mrmimegalar", "to_id")
+
+
+func test_init_frames_are_backlog() -> void:
+	var init := PSParser.parse_frame(">lobby\n|init|chat\n|title|Lobby\n|c:|1760699400|+Mirebloom|hi")
+	assert_eq(init.map(func(m: PSMessage) -> bool: return m.backlog), [true, true, true], "every line of an |init| frame")
+	var live := PSParser.parse_frame(">lobby\n|c:|1760700060|+Mirebloom|hi\n|j| Alice")
+	assert_eq(live.map(func(m: PSMessage) -> bool: return m.backlog), [false, false], "a live frame")
+	var later := PSParser.parse_frame(">lobby\n|c:|1760700060|+Mirebloom|hi\n|init|chat")
+	assert_eq(later.map(func(m: PSMessage) -> bool: return m.backlog), [false, false], "|init| not on the first line")
+	var headerless := PSParser.parse_frame("|init|chat\n|title|Lobby\n|c|+Mirebloom|hi")
+	assert_eq(headerless.map(func(m: PSMessage) -> bool: return m.backlog), [true, true, true], "no >ROOMID header (lobby)")
+	assert_eq(headerless[0].room_id, "", "lobby frame room id")

@@ -86,3 +86,155 @@ func test_output_device_labels() -> void:
 	assert_eq(Sounds.device_label("alsa_output.pci-0000_06_00.1.hdmi-stereo"), "HDMI", "hdmi")
 	assert_eq(Sounds.device_label("Speakers (Realtek(R) Audio)"), "Speakers (Realtek(R) Audio)", "readable names unchanged")
 	assert_eq(Sounds.device_label("Default"), "System default", "default")
+
+
+func test_battle_found_after_long_search() -> void:
+	var toasts := _capture_toasts()
+	_feed('|updatesearch|{"searching":["gen9ou"],"games":null}')
+	_wait(toasts, 40000)
+	_feed('|updatesearch|{"searching":[],"games":{"battle-gen9ou-501":"[Gen 9] OU"}}')
+	_wait(toasts, 500)
+	_feed(">battle-gen9ou-501\n|init|battle\n|title|Alice vs. Bob")
+	assert_eq(_titles(toasts), ["Battle found"], "40 s search, then matched")
+	_release(toasts)
+	Rooms.battles.erase("battle-gen9ou-501")
+
+
+func test_battle_found_only_shortly_after_the_search() -> void:
+	var toasts := _capture_toasts()
+	_feed('|updatesearch|{"searching":["gen9ou"],"games":null}')
+	_feed('|updatesearch|{"searching":[],"games":{"battle-gen9ou-507":"[Gen 9] OU"}}')
+	_wait(toasts, 16000)
+	_feed(">battle-gen9ou-507\n|init|battle\n|title|Alice vs. Bob")
+	assert_eq(_titles(toasts), [], "the battle opened 16 s after the search ended")
+	_release(toasts)
+	Rooms.battles.erase("battle-gen9ou-507")
+
+
+func test_spectating_after_a_cancelled_search_is_not_found() -> void:
+	var toasts := _capture_toasts()
+	_feed('|updatesearch|{"searching":["gen9ou"],"games":null}')
+	_feed('|updatesearch|{"searching":[],"games":null}')
+	_wait(toasts, 2000)
+	_feed(">battle-gen9ou-508\n|init|battle\n|title|Alice vs. Bob")
+	assert_eq(_titles(toasts), [], "cancelled, then watching someone else's battle")
+	_release(toasts)
+	Rooms.battles.erase("battle-gen9ou-508")
+
+
+func test_battles_that_come_back_are_not_found() -> void:
+	var toasts := _capture_toasts()
+	_feed(">battle-gen9ou-502\n|init|battle\n|title|Alice vs. Bob")
+	assert_eq(_titles(toasts), [], "no search: opening a battle")
+	# The connection drops while searching; the server forgets the search.
+	_feed('|updatesearch|{"searching":["gen9ou"],"games":null}')
+	EventBus.reconnected.emit()
+	_feed('|updatesearch|{"searching":[],"games":{"battle-gen9ou-502":"[Gen 9] OU"}}')
+	_feed(">battle-gen9ou-502\n|init|battle\n|title|Alice vs. Bob")
+	assert_true(Rooms.get_battle("battle-gen9ou-502").restored, "restored")
+	assert_eq(_titles(toasts), [], "a restored battle right after a search ended")
+	_release(toasts)
+	Rooms.battles.erase("battle-gen9ou-502")
+
+
+func test_spectators_get_a_neutral_result() -> void:
+	var toasts := _capture_toasts()
+	var username := Connection.username
+	Connection.username = "ironquill"
+	_feed(">battle-gen9ou-601\n|init|battle\n|player|p1|Alice|1|\n|player|p2|Bob|2|\n|turn|1")
+	_feed(">battle-gen9ou-601\n|win|Alice")
+	assert_eq(_titles(toasts), ["Alice won"], "spectating: not \"You lost\"")
+	Connection.username = username
+	_release(toasts)
+	Rooms.battles.erase("battle-gen9ou-601")
+
+
+func test_result_in_the_replayed_log_is_not_news() -> void:
+	var toasts := _capture_toasts()
+	var username := Connection.username
+	Connection.username = "ironquill"
+	_feed(">battle-gen9ou-602\n|init|battle\n|player|p1|Alice|1|\n|player|p2|Bob|2|\n|turn|9\n|win|Alice")
+	assert_eq(_titles(toasts), [], "opening a finished battle")
+	# A battle we played that ended while the connection was down: news when it comes back.
+	var log := ">battle-gen9ou-603\n|init|battle\n|player|p1|ironquill|1|\n|player|p2|Bob|2|\n|turn|3"
+	_feed(log)
+	EventBus.reconnected.emit()
+	_feed(log + "\n|turn|4\n|win|ironquill")
+	assert_eq(_titles(toasts), ["You won"], "ended during the reconnect")
+	Connection.username = username
+	_release(toasts)
+	Rooms.battles.erase("battle-gen9ou-602")
+	Rooms.battles.erase("battle-gen9ou-603")
+
+
+func test_your_turn_names_the_turn_asked_for() -> void:
+	var toasts := _capture_toasts()
+	var request := '|request|{"active":[{"moves":[]}],"side":{"id":"p1","name":"ironquill","pokemon":[]},"rqid":%d}'
+	_feed(">battle-gen9ou-604\n|init|battle\n|player|p1|ironquill|1|\n|turn|6")
+	_feed(">battle-gen9ou-604\n|move|p1a: Mew|Psychic|p2a: Muk\n|upkeep\n|turn|7")
+	_feed(">battle-gen9ou-604\n" + request % 7)
+	assert_eq(_titles(toasts), ["Your turn · Turn 7"], "the server sends |turn|7, then its |request|")
+	# Rejoining: the server replays the log, then sends the open request again.
+	_feed(">battle-gen9ou-605\n|init|battle\n|player|p1|ironquill|1|\n|turn|1\n|turn|2")
+	_feed(">battle-gen9ou-605\n" + request % 2)
+	assert_eq(_titles(toasts), ["Your turn · Turn 7", "Your turn · Turn 2"], "after a rejoin")
+	_release(toasts)
+	Rooms.battles.erase("battle-gen9ou-604")
+	Rooms.battles.erase("battle-gen9ou-605")
+
+
+func test_old_mentions_do_not_notify() -> void:
+	var toasts := _capture_toasts()
+	var username := Connection.username
+	Connection.username = "ironquill"
+	_feed(">lobby\n|init|chat\n|title|Lobby\n|:|1760700000\n|c:|1760699400|+Mirebloom|hi ironquill")
+	assert_eq(_titles(toasts), [], "chat backlog on joining")
+	_feed(">battle-gen9ou-606\n|init|battle\n|player|p1|ironquill|1|\n|c|Mirebloom|gl ironquill\n|turn|1")
+	assert_eq(_titles(toasts), [], "battle chat replayed on (re)joining")
+	_feed(">lobby\n|c:|1760700060|+Mirebloom|ironquill, you there?")
+	assert_eq(_titles(toasts), ["Mirebloom mentioned you"], "a new mention")
+	Connection.username = username
+	_release(toasts)
+	Rooms.battles.erase("battle-gen9ou-606")
+
+
+# --- Helpers --------------------------------------------------------------------------------
+
+func _feed(frame: String) -> void:
+	for msg in PSParser.parse_frame(frame):
+		EventBus.message_received.emit(msg)
+
+
+## Records toasts until _release and gives the Notifier a clock that only moves with _wait;
+## also keeps the bell's history as it was.
+func _capture_toasts() -> Dictionary:
+	var toasts := []
+	var on_toast := func(toast: Dictionary) -> void: toasts.append(toast)
+	EventBus.toast_requested.connect(on_toast)
+	var now := [1000000]
+	Notifier._clock = func() -> int: return now[0]
+	return {"toasts": toasts, "on_toast": on_toast, "now": now,
+		"history": Notifier.history.duplicate(), "unread": Notifier.unread}
+
+
+## Lets `ms` pass on the Notifier's clock.
+func _wait(capture: Dictionary, ms: int) -> void:
+	capture["now"][0] += ms
+
+
+## Undoes everything a test left in Notifier and Rooms, so tests don't depend on their order.
+func _release(capture: Dictionary) -> void:
+	EventBus.toast_requested.disconnect(capture["on_toast"])
+	Notifier.history = capture["history"]
+	Notifier.unread = capture["unread"]
+	Notifier._clock = Time.get_ticks_msec
+	Notifier._searching = false
+	Notifier._search_ended_ms = -1
+	Notifier._notified_rqid.clear()
+	Rooms.games = {}
+	Rooms.searching = PackedStringArray()
+	Rooms.replaying = false
+
+
+func _titles(capture: Dictionary) -> Array:
+	return capture["toasts"].map(func(toast: Dictionary) -> String: return toast["title"])

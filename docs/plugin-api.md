@@ -46,7 +46,7 @@ func _plugin_disable() -> void:
 |---|---|
 | `connection_state_changed` | `state: int` – 0 disconnected, 1 connecting, 2 connected, 3 waiting for the next reconnect attempt |
 | `logged_in` | `username: String` |
-| `message_received` | `msg: PSMessage` (every raw protocol message) |
+| `message_received` | `msg: PSMessage` (every raw protocol message; `msg.backlog` is true for the lines of an `|init|` frame, i.e. a room's chat backlog or a battle log replayed on (re)join) |
 | `room_joined` | `room_id: String, room_type: String` |
 | `room_left` | `room_id: String` |
 | `chat_message` | `room_id: String, user: String, text: String` |
