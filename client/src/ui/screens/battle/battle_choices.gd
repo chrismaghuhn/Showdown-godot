@@ -1,6 +1,6 @@
 class_name BattleChoices
 extends RefCounted
-## Pure rules behind the battle screen's choice panel (switch slots), kept
+## Pure rules behind the battle screen's choice panel (switch slots, timer countdown), kept
 ## out of BattleScreen so they can be tested without building the screen.
 
 
@@ -27,3 +27,7 @@ static func is_reviving(request: Dictionary) -> bool:
 			return true
 	return false
 
+
+## One second of the local timer countdown; -1 (unknown, e.g. when spectating) stays -1.
+static func count_down(seconds: int) -> int:
+	return seconds if seconds < 0 else maxi(seconds - 1, 0)

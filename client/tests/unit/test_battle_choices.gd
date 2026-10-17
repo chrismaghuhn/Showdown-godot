@@ -1,5 +1,5 @@
 extends "res://tests/test_case.gd"
-## BattleChoices: the rules behind the battle screen's switch slots.
+## BattleChoices: the rules behind the battle screen's switch slots and timer countdown.
 
 
 ## Own team in request order: an active Pokémon, a healthy one and a fainted one on the bench.
@@ -46,3 +46,9 @@ func test_revival_blessing_picks_fainted_bench_pokemon() -> void:
 	assert_true(not BattleChoices.is_reviving(_request({}, false, true)), "plain forced switch")
 	assert_eq(_switchable(_request({}, false, true)), [false, true, false] as Array[bool], "forced switch")
 
+
+func test_timer_countdown_keeps_unknown_seconds() -> void:
+	# Spectators only learn that the timer is on (-1 seconds): no "0:00 / 0:00" countdown.
+	assert_eq(BattleChoices.count_down(-1), -1, "unknown stays unknown")
+	assert_eq(BattleChoices.count_down(140), 139, "counts down")
+	assert_eq(BattleChoices.count_down(0), 0, "stops at zero")

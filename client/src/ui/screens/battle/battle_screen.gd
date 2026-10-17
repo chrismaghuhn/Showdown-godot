@@ -17,7 +17,7 @@ var _tera := false
 var _refresh_queued := false
 var _timer_turn := -1
 var _timer_total := -1
-var _timer_seen := Vector2i(-2, -2)
+var _timer_seen := []
 
 # Battlefield
 var _my_name := Label.new()
@@ -450,8 +450,8 @@ func _on_tick() -> void:
 			_remove_paused_box(paused_id)
 	if battle == null or not battle.timer_on or _waiting or battle.ended:
 		return
-	_timer_turn = maxi(_timer_turn - 1, 0)
-	_timer_total = maxi(_timer_total - 1, 0)
+	_timer_turn = BattleChoices.count_down(_timer_turn)
+	_timer_total = BattleChoices.count_down(_timer_total)
 	_update_timer_button()
 
 
@@ -697,7 +697,8 @@ func _chosen_text(active_req: Dictionary, dex: Dex) -> String:
 func _update_timer_button() -> void:
 	if battle == null:
 		return
-	var seen := Vector2i(battle.timer_turn_seconds, battle.timer_total_seconds)
+	# Resync on every "Time left" message, also when it repeats the last values.
+	var seen := [battle, battle.timer_updates]
 	if seen != _timer_seen:
 		_timer_seen = seen
 		_timer_turn = battle.timer_turn_seconds
