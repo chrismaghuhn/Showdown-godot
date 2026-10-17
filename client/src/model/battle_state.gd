@@ -37,8 +37,12 @@ var timer_updates := 0
 ## Latest |request| payload (what we may choose this turn).
 var request := {}
 var ended := false
-## Rejoined after a reconnect (the log was replayed from the start).
+## Rejoined after a reconnect or restart (the log was replayed from the start).
 var restored := false
+## The server asked for a choice that hasn't been sent yet ("your move").
+var awaiting_choice := false
+## The room went away on the server before a result arrived (ended, but neither won nor tied).
+var expired := false
 var winner := ""
 
 ## Abilities whose "[of]" is the other Pokémon involved (the attacker or the victim), not the
@@ -225,9 +229,11 @@ func apply(msg: PSMessage) -> void:
 			timer_updates += 1
 		"win":
 			ended = true
+			awaiting_choice = false
 			winner = msg.arg(0)
 		"tie":
 			ended = true
+			awaiting_choice = false
 	_reveal_from_kwargs(msg)
 
 
@@ -276,6 +282,8 @@ func turns_left(start_turn: int, duration := 5) -> int:
 ## Applies a parsed |request| JSON. Our own side gets exact HP and move lists from it.
 func apply_request(req: Dictionary) -> void:
 	request = req
+	awaiting_choice = not ended and not req.get("wait", false) \
+		and (req.has("active") or req.has("forceSwitch") or req.get("teamPreview", false))
 	var side_data: Variant = req.get("side")
 	if not side_data is Dictionary:
 		return
@@ -297,9 +305,21 @@ func apply_request(req: Dictionary) -> void:
 			mon.tera_type = str(entry["terastallized"])
 
 
+## The other player's name ("" until known). Spectators see p1's opponent.
+func opponent_name() -> String:
+	return side("p1" if my_side == "p2" else "p2").player_name
+
+
+## "[Gen 9] OU", or the format id from the room id until |tier| arrives.
+func display_format() -> String:
+	return format if not format.is_empty() else room_id.get_slice("-", 1)
+
+
 ## Sets my_side from the player names while it is still unknown, i.e. before the first
 ## |request| (at battle start, and when (re)joining a battle in progress, where the server replays
 ## the whole log first). Spectators don't match any player and keep "".
+
+
 func claim_side_by_name(username: String) -> void:
 	if not my_side.is_empty() or username.is_empty():
 		return

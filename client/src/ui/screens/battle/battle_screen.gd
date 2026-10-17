@@ -1,3 +1,4 @@
+class_name BattleScreen
 extends Control
 ## Battle screen, layout B "Desktop" (design canvas: "B · Desktop — choose move / waiting").
 ##
@@ -6,8 +7,14 @@ extends Control
 ##
 ## Columns can be resized with the split handles; panels collapse from their header.
 ## Hotkeys: 1–4 moves, Shift+1–6 switch, Esc cancel the chosen action.
+##
+## Each battle tab has its own instance, bound to one room with bind(). An unbound instance
+## (--screen=battle) follows the newest battle. Plugin sidebar panels live in whichever battle
+## screen is visible.
 
 var battle: BattleState
+## The battle room this screen shows ("" = follow the newest battle).
+var room_id := ""
 
 var _builder := BattleLogBuilder.new()
 var _request := {}
@@ -62,12 +69,13 @@ func _ready() -> void:
 	EventBus.chat_message.connect(_on_chat_message)
 	EventBus.plugin_panel_added.connect(_on_plugin_panel_added)
 	EventBus.plugin_paused.connect(_on_plugin_paused)
-	EventBus.room_left.connect(func(room_id: String) -> void:
-		if battle != null and battle.room_id == room_id:
+	EventBus.room_left.connect(func(left: String) -> void:
+		if battle != null and battle.room_id == left:
 			_queue_refresh())
 	EventBus.data_loaded.connect(func(_dex: Dex) -> void: _queue_refresh())
-	for entry in Plugins.get_panel_entries(&"sidebar"):
-		_add_plugin_panel(entry["plugin_id"], entry["control"])
+	if is_visible_in_tree():
+		for entry in Plugins.get_panel_entries(&"sidebar"):
+			_add_plugin_panel(entry["plugin_id"], entry["control"])
 	for plugin_id: String in Plugins.paused:
 		_on_plugin_paused(plugin_id, Plugins.paused[plugin_id])
 	var ticker := Timer.new()
@@ -75,9 +83,18 @@ func _ready() -> void:
 	ticker.autostart = true
 	ticker.timeout.connect(_on_tick)
 	add_child(ticker)
-	if not Rooms.battles.is_empty():
+	if not room_id.is_empty() and Rooms.battles.has(room_id):
+		_on_battle_started(Rooms.battles[room_id])
+	elif room_id.is_empty() and not Rooms.battles.is_empty():
 		_on_battle_started(Rooms.battles.values().back())
 	_refresh()
+
+
+## Shows one battle room only (a battle tab).
+func bind(room: String) -> void:
+	room_id = room
+	if is_inside_tree() and Rooms.battles.has(room):
+		_on_battle_started(Rooms.battles[room])
 
 
 # --- Layout -------------------------------------------------------------------------------
@@ -119,6 +136,18 @@ func _build() -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_RESIZED:
 		_update_column_widths()
+	elif what == NOTIFICATION_VISIBILITY_CHANGED and is_inside_tree() and is_visible_in_tree():
+		# Plugin panels exist once; the visible battle tab shows them.
+		for entry in Plugins.get_panel_entries(&"sidebar"):
+			var control: Control = entry["control"]
+			if not is_ancestor_of(control):
+				_add_plugin_panel(entry["plugin_id"], control)
+	elif what == NOTIFICATION_EXIT_TREE:
+		# Don't take the plugins' panels down with this screen; another tab adopts them.
+		for entry in Plugins.get_panel_entries(&"sidebar"):
+			var control: Control = entry["control"]
+			if is_ancestor_of(control):
+				control.get_parent().remove_child(control)
 
 
 ## Design: log column clamp(360, 25vw, 480), sidebar clamp(264, 16.5vw, 320).
@@ -338,11 +367,11 @@ func _add_plugin_panel(plugin_id: String, control: Control) -> void:
 	panel.body.add_child(margin)
 	panel.set_meta("plugin_id", plugin_id)
 	_aside.add_child(panel)
-	# A disabled or paused plugin frees its control; its panel goes with it.
+	# A disabled or paused plugin frees its control (or another tab adopts it); the panel goes.
 	control.tree_exiting.connect(func() -> void:
 		if is_instance_valid(panel):
 			panel.queue_free()
-			_update_plugin_count.call_deferred())
+			_update_plugin_count.call_deferred(), CONNECT_ONE_SHOT)
 	_remove_paused_box(plugin_id)
 	_update_plugin_count()
 
@@ -390,8 +419,10 @@ func _update_plugin_count() -> void:
 # --- Events -------------------------------------------------------------------------------
 
 func _on_battle_started(started: BattleState) -> void:
-	# After a reconnect every battle comes back; keep showing the one that was on screen.
-	if started.restored and battle != null and battle.room_id != started.room_id and not battle.ended:
+	if not room_id.is_empty() and started.room_id != room_id:
+		return
+	# Unbound: after a reconnect every battle comes back; keep showing the one on screen.
+	if room_id.is_empty() and started.restored and battle != null and battle.room_id != started.room_id and not battle.ended:
 		return
 	battle = started
 	_builder = BattleLogBuilder.new()
@@ -411,6 +442,10 @@ func _on_battle_updated(updated: BattleState, msg: PSMessage) -> void:
 	_builder.push(msg, battle)
 	if msg.type == "turn" or msg.type == "upkeep":
 		_waiting = false
+	elif msg.type == "sentchoice":
+		# Rejoined after the choice went out: show it as chosen, not the buttons again.
+		_chosen = msg.arg(0)
+		_waiting = true
 	_queue_refresh()
 
 
@@ -432,12 +467,12 @@ func _on_battle_ended(ended: BattleState, _winner: String) -> void:
 
 
 func _on_plugin_panel_added(plugin_id: String, slot: StringName, control: Control) -> void:
-	if slot == &"sidebar":
+	if slot == &"sidebar" and is_visible_in_tree():
 		_add_plugin_panel(plugin_id, control)
 
 
-func _on_chat_message(room_id: String, user: String, text: String) -> void:
-	if battle == null or room_id != battle.room_id:
+func _on_chat_message(chat_room: String, user: String, text: String) -> void:
+	if battle == null or chat_room != battle.room_id:
 		return
 	_chat.append_text("[b]%s[/b] %s\n" % [BattleLogBuilder.esc(user), BattleLogBuilder.esc(text)])
 
@@ -501,7 +536,7 @@ func _send_choice(choice: String) -> void:
 func _cancel_choice() -> void:
 	if battle == null or not _waiting:
 		return
-	Connection.send(battle.room_id, "/undo")
+	Connection.undo_choice(battle.room_id)
 	_waiting = false
 	_chosen = ""
 	_refresh()
