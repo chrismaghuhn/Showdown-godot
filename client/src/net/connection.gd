@@ -51,6 +51,11 @@ var last_error := ""
 var stay_signed_in := false
 
 var _ws: WebSocketPeer
+## Outgoing messages wait here when the throttle says "not yet" (see SendThrottle).
+var _outbox: Array[String] = []
+var _throttle := SendThrottle.new()
+## Tests send through this instead of the websocket.
+var _transport := Callable()
 var _login := LoginClient.new()
 var _pending_login := {}
 var _retry_at_msec := 0
@@ -100,8 +105,11 @@ func connect_to_server(id: String) -> void:
 	_open()
 
 
-## Closes the connection on purpose ("Work offline", "Disconnect"): no reconnect.
+## Closes the connection on purpose ("Work offline", "Disconnect"): no reconnect. Messages
+## still waiting for the throttle go out first - a move must not get lost on the way out.
 func disconnect_from_server() -> void:
+	if state == State.CONNECTED:
+		_flush_all()
 	_close_socket()
 	_reset_session()
 	_pending_login.clear()
@@ -130,11 +138,41 @@ func retry_in() -> float:
 
 
 ## Sends `text` to a room. Use room_id "" for global commands like /search or /trn.
+## Messages go out at the server's pace (SendThrottle) and in order; line breaks become
+## spaces, because the server runs every line of a message as its own command.
 func send(room_id: String, text: String) -> void:
 	if state != State.CONNECTED:
 		push_warning("Connection.send() while not connected: " + text)
 		return
-	_ws.send_text(room_id + "|" + text)
+	var line := room_id.replace("|", "").replace("\n", "").replace("\r", "") + "|" \
+		+ text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ")
+	_outbox.append(line)
+	_flush_outbox(Time.get_ticks_msec())
+
+
+## Quitting the app: send what's still queued (see disconnect_from_server).
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST and state == State.CONNECTED:
+		_flush_all()
+
+
+## Sends everything queued at once, ignoring the throttle (only when closing on purpose).
+func _flush_all() -> void:
+	while not _outbox.is_empty():
+		_send_line(_outbox.pop_front())
+
+
+func _send_line(line: String) -> void:
+	if _transport.is_valid():
+		_transport.call(line)
+	elif _ws != null:
+		_ws.send_text(line)
+
+
+## Sends what the throttle allows at `now` (msec); the rest waits for _process.
+func _flush_outbox(now: int) -> void:
+	while not _outbox.is_empty() and _throttle.take(now):
+		_send_line(_outbox.pop_front())
 
 
 ## Sends a battle decision, e.g. choose("battle-gen9randombattle-1", "move 2", 3).
@@ -231,6 +269,8 @@ func _process(_delta: float) -> void:
 			_handle_frame(_ws.get_packet().get_string_from_utf8())
 		if gen != _socket_gen:
 			return
+		if not _outbox.is_empty():
+			_flush_outbox(Time.get_ticks_msec())
 	elif ready == WebSocketPeer.STATE_CLOSED:
 		var reason := _ws.get_close_reason()
 		_on_socket_lost(reason if not reason.is_empty() else tr("The connection closed (code %d)") % _ws.get_close_code())
@@ -296,6 +336,9 @@ func _close_socket() -> void:
 		_ws = null
 	# A sign-in answer belongs to the challstr of this socket; a late one is useless.
 	_login.cancel()
+	# Unsent messages belong to the old session (a choice for an old request, a stale search).
+	_outbox.clear()
+	_throttle.reset()
 	_socket_gen += 1
 
 
@@ -334,6 +377,16 @@ func _handle_session_message(msg: PSMessage) -> void:
 				EventBus.logged_in.emit(username)
 			if reconnecting:
 				_finish_reconnect()
+		"raw":
+			# The server dropped a message anyway ("...typing too quickly"): pause, and say so,
+			# because it may have been a move.
+			# Only the server's own notice starts with this tag (/declare text is escaped).
+			if msg.arg(0).begins_with("<strong class=\"message-throttle-notice\">"):
+				var now := Time.get_ticks_msec()
+				# One notice per dropped message: tell the user once per pause.
+				if not _throttle.is_paused(now):
+					EventBus.popup.emit(tr("Showdown dropped a message because too many were sent at once. If your move didn't go through, press Cancel and choose it again."))
+				_throttle.back_off(now)
 		"nametaken":
 			signing_in = false
 			if _relogin and _rename_retries < RENAME_RETRIES:
