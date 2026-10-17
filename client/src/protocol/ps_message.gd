@@ -14,6 +14,9 @@ var args := PackedStringArray()
 var kwargs := {}
 ## The original line, for debugging and raw logs.
 var raw := ""
+## Part of a room's |init| frame: chat backlog or a battle log replayed on (re)join, i.e. it
+## happened before we joined.
+var backlog := false
 
 
 func arg(index: int, default := "") -> String:

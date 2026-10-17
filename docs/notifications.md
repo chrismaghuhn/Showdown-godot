@@ -12,9 +12,9 @@ Design: canvas "Settings · Notifications". Code: `NotificationEvents` (rules, p
 | Your turn | ✓ | ✓ | ✓ | a new `|request|` asks for a decision |
 | Timer running low | ✓ | ✓ | ✓ | `|inactive|` reports ≤ the warning time (60/30/10 s, default 30) |
 | Challenge received | ✓ | ✓ | – | a `|pm|` with `/challenge FORMAT|…` to us |
-| Mentioned in chat | ✓ | – | ✓ | our name as a whole word in someone else's chat message |
+| Mentioned in chat | ✓ | – | ✓ | our name as a whole word in someone else's chat message (not in the backlog or replayed battle log sent with `|init|`) |
 | Private message | ✓ | ✓ | ✓ | a `|pm|` that isn't a command (`/me` counts) |
-| Battle ended | ✓ | – | – | `|win|` / `|tie|` |
+| Battle ended | ✓ | – | – | `|win|` / `|tie|`; spectators get "NAME won"; not for a result already in the log when opening a battle (unless it came back after a reconnect or restart) |
 
 **Only when in the background** (default on): sound and desktop notifications stay quiet while
 the app has focus. In-app toasts are skipped while their subject (e.g. that battle) is on screen.

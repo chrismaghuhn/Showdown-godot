@@ -46,6 +46,9 @@ static func parse_frame(data: String) -> Array[PSMessage]:
 		if line.is_empty():
 			continue
 		result.append(parse_line(room_id, line))
+	if not result.is_empty() and result[0].type == "init":
+		for msg in result:
+			msg.backlog = true
 	return result
 
 

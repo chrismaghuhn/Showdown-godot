@@ -114,6 +114,67 @@ func test_battles_that_come_back_are_not_found() -> void:
 	Rooms.battles.erase("battle-gen9ou-502")
 
 
+func test_spectators_get_a_neutral_result() -> void:
+	var toasts := _capture_toasts()
+	var username := Connection.username
+	Connection.username = "ironquill"
+	_feed(">battle-gen9ou-601\n|init|battle\n|player|p1|Alice|1|\n|player|p2|Bob|2|\n|turn|1")
+	_feed(">battle-gen9ou-601\n|win|Alice")
+	assert_eq(_titles(toasts), ["Alice won"], "spectating: not \"You lost\"")
+	Connection.username = username
+	_release(toasts)
+	Rooms.battles.erase("battle-gen9ou-601")
+
+
+func test_result_in_the_replayed_log_is_not_news() -> void:
+	var toasts := _capture_toasts()
+	var username := Connection.username
+	Connection.username = "ironquill"
+	_feed(">battle-gen9ou-602\n|init|battle\n|player|p1|Alice|1|\n|player|p2|Bob|2|\n|turn|9\n|win|Alice")
+	assert_eq(_titles(toasts), [], "opening a finished battle")
+	# A battle we played that ended while the connection was down: news when it comes back.
+	var log := ">battle-gen9ou-603\n|init|battle\n|player|p1|ironquill|1|\n|player|p2|Bob|2|\n|turn|3"
+	_feed(log)
+	EventBus.reconnected.emit()
+	_feed(log + "\n|turn|4\n|win|ironquill")
+	assert_eq(_titles(toasts), ["You won"], "ended during the reconnect")
+	Connection.username = username
+	_release(toasts)
+	Rooms.battles.erase("battle-gen9ou-602")
+	Rooms.battles.erase("battle-gen9ou-603")
+
+
+func test_your_turn_names_the_turn_asked_for() -> void:
+	var toasts := _capture_toasts()
+	var request := '|request|{"active":[{"moves":[]}],"side":{"id":"p1","name":"ironquill","pokemon":[]},"rqid":%d}'
+	_feed(">battle-gen9ou-604\n|init|battle\n|player|p1|ironquill|1|\n|turn|6")
+	_feed(">battle-gen9ou-604\n|move|p1a: Mew|Psychic|p2a: Muk\n|upkeep\n|turn|7")
+	_feed(">battle-gen9ou-604\n" + request % 7)
+	assert_eq(_titles(toasts), ["Your turn · Turn 7"], "the server sends |turn|7, then its |request|")
+	# Rejoining: the server replays the log, then sends the open request again.
+	_feed(">battle-gen9ou-605\n|init|battle\n|player|p1|ironquill|1|\n|turn|1\n|turn|2")
+	_feed(">battle-gen9ou-605\n" + request % 2)
+	assert_eq(_titles(toasts), ["Your turn · Turn 7", "Your turn · Turn 2"], "after a rejoin")
+	_release(toasts)
+	Rooms.battles.erase("battle-gen9ou-604")
+	Rooms.battles.erase("battle-gen9ou-605")
+
+
+func test_old_mentions_do_not_notify() -> void:
+	var toasts := _capture_toasts()
+	var username := Connection.username
+	Connection.username = "ironquill"
+	_feed(">lobby\n|init|chat\n|title|Lobby\n|:|1760700000\n|c:|1760699400|+Mirebloom|hi ironquill")
+	assert_eq(_titles(toasts), [], "chat backlog on joining")
+	_feed(">battle-gen9ou-606\n|init|battle\n|player|p1|ironquill|1|\n|c|Mirebloom|gl ironquill\n|turn|1")
+	assert_eq(_titles(toasts), [], "battle chat replayed on (re)joining")
+	_feed(">lobby\n|c:|1760700060|+Mirebloom|ironquill, you there?")
+	assert_eq(_titles(toasts), ["Mirebloom mentioned you"], "a new mention")
+	Connection.username = username
+	_release(toasts)
+	Rooms.battles.erase("battle-gen9ou-606")
+
+
 # --- Helpers --------------------------------------------------------------------------------
 
 func _feed(frame: String) -> void:

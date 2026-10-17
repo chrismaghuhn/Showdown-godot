@@ -18,6 +18,9 @@ var battles := {}
 var formats: Array[Dictionary] = []
 ## Format ids being searched right now (|updatesearch|).
 var searching := PackedStringArray()
+## True while handling a line of an |init| frame (PSMessage.backlog): the chat, results etc.
+## being reported happened before we joined.
+var replaying := false
 ## This user's running games {room_id: title} (|updatesearch|), joined or not.
 var games := {}
 
@@ -106,6 +109,7 @@ func forget(room_id: String) -> void:
 
 
 func _on_message(msg: PSMessage) -> void:
+	replaying = msg.backlog
 	var room_id := msg.room_id
 	match msg.type:
 		"init":

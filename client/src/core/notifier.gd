@@ -167,6 +167,7 @@ func _on_battle_request(battle: BattleState, request: Dictionary) -> void:
 	if _notified_rqid.get(battle.room_id, -2) == rqid:
 		return
 	_notified_rqid[battle.room_id] = rqid
+	# The server sends the turn's log (|turn|N) before its |request|, so battle.turn is the turn asked for.
 	post("your_turn", tr("Your turn · Turn %d") % maxi(battle.turn, 1), _battle_line(battle),
 		[[tr("Go to battle"), _go_to_battle.bind(battle.room_id)]], "your_turn:" + battle.room_id, _on_battle_screen(battle))
 
@@ -188,8 +189,14 @@ func _on_battle_updated(battle: BattleState, msg: PSMessage) -> void:
 func _on_battle_ended(battle: BattleState, winner: String) -> void:
 	for prefix in ["your_turn:", "timer_low:"]:
 		EventBus.toast_dismissed.emit(prefix + battle.room_id)
+	# A result already in the log when we opened the battle is old news; one that came in while
+	# a battle we followed was away (reconnect, restart) is not.
+	if Rooms.replaying and not battle.restored:
+		return
 	var title := tr("The battle ended in a tie")
-	if not winner.is_empty():
+	if not winner.is_empty() and battle.my_side.is_empty():
+		title = tr("%s won") % winner
+	elif not winner.is_empty():
 		title = tr("You won") if PSParser.to_id(winner) == PSParser.to_id(Connection.username) else tr("You lost")
 	post("battle_ended", title, _battle_line(battle), [], "battle_ended:" + battle.room_id, _on_battle_screen(battle))
 
@@ -213,7 +220,8 @@ func _on_private_message(from: String, to: String, text: String) -> void:
 
 func _on_chat_message(room_id: String, user: String, text: String) -> void:
 	var sender := user.substr(1) if not user.is_empty() and PSParser.to_id(user[0]).is_empty() else user
-	if NotificationEvents.is_mention(sender, text, Connection.username):
+	# The backlog sent on joining (and a battle's replayed log) holds old mentions.
+	if not Rooms.replaying and NotificationEvents.is_mention(sender, text, Connection.username):
 		post("mention", tr("%s mentioned you") % sender, text)
 
 
