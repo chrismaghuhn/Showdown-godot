@@ -225,6 +225,30 @@ func test_replace_moves_reveals_made_while_disguised() -> void:
 	assert_eq(pikachu.revealed_moves, PackedStringArray(["Thunderbolt"]), "Pikachu keeps its own moves")
 	assert_eq(pikachu.item, "", "Pikachu's item is unknown again")
 
+	# A move the disguise had shown before still counts for Zoroark; so do eaten berries and abilities.
+	b = _battle("|switch|p2a: Pikachu|Pikachu|100/100\n|move|p2a: Pikachu|Protect|p2a: Pikachu\n" +
+		"|switch|p2a: Snorlax|Snorlax|100/100\n|switch|p2a: Pikachu|Pikachu|100/100\n" +
+		"|move|p2a: Pikachu|Protect|p2a: Pikachu\n|-enditem|p2a: Pikachu|Lum Berry|[eat]\n" +
+		"|-damage|p1a: X|90/100|[from] ability: Rough Skin|[of] p2a: Pikachu\n" +
+		"|replace|p2a: Zoroark|Zoroark, M")
+	zoroark = b.side("p2").pokemon["Zoroark"]
+	pikachu = b.side("p2").pokemon["Pikachu"]
+	assert_eq(zoroark.revealed_moves, PackedStringArray(["Protect"]), "a move both used")
+	assert_eq(pikachu.revealed_moves, PackedStringArray(["Protect"]), "Pikachu's own Protect stays")
+	assert_eq(zoroark.prev_item, "Lum Berry", "the eaten berry was Zoroark's")
+	assert_eq(pikachu.prev_item, "", "not Pikachu's")
+	assert_eq(zoroark.ability, "Rough Skin", "an ability revealed while disguised")
+	assert_eq(pikachu.ability, "", "Pikachu's ability is unknown again")
+
+
+func test_replace_on_our_side_keeps_request_moves_and_item() -> void:
+	var b := BattleState.new("battle-test")
+	b.my_side = "p1"
+	for line in ["|switch|p1a: Pikachu|Pikachu|100/100", "|move|p1a: Pikachu|Night Daze|p2a: Y",
+			"|replace|p1a: Zoroark|Zoroark, M"]:
+		b.apply(PSParser.parse_line("battle-test", line))
+	assert_eq(b.side("p1").pokemon["Zoroark"].revealed_moves, PackedStringArray(), "own reveals aren't moved")
+
 
 func test_copied_ability_ends_on_switch_out() -> void:
 	var b := _battle("|switch|p1a: Gyarados|Gyarados|100/100\n|switch|p2a: Gardevoir|Gardevoir|100/100\n" +
@@ -235,6 +259,22 @@ func test_copied_ability_ends_on_switch_out() -> void:
 	b.apply(PSParser.parse_line("battle-test", "|switch|p2a: Snorlax|Snorlax|100/100"))
 	assert_eq(gardevoir.ability, "Trace", "Trace again after switching out")
 	assert_eq(gardevoir.base_ability, "", "nothing copied any more")
+
+	# Current shape (the replaced ability as a third argument); Receiver; restore on |drag|.
+	b = _battle("|switch|p1a: Gyarados|Gyarados|100/100\n|switch|p2a: Gardevoir|Gardevoir|100/100\n" +
+		"|-ability|p2a: Gardevoir|Intimidate|Trace|[from] ability: Trace|[of] p1a: Gyarados\n" +
+		"|drag|p2a: Snorlax|Snorlax|100/100")
+	assert_eq(b.side("p2").pokemon["Gardevoir"].ability, "Trace", "restored after |drag|")
+	b = _battle("|switch|p2a: Passimian|Passimian|100/100\n" +
+		"|-ability|p2a: Passimian|Intimidate|Receiver|[from] ability: Receiver|[of] p2b: Gyarados\n" +
+		"|switch|p2a: Snorlax|Snorlax|100/100")
+	assert_eq(b.side("p2").pokemon["Passimian"].ability, "Receiver", "Receiver restored")
+	# An Imposter Ditto that transformed into a Trace user keeps Imposter as its own ability.
+	b = _battle("|switch|p1a: Gyarados|Gyarados|100/100\n|switch|p2a: Ditto|Ditto|100/100\n" +
+		"|-transform|p2a: Ditto|p1a: Gyarados|[from] ability: Imposter\n" +
+		"|-ability|p2a: Ditto|Intimidate|Trace|[from] ability: Trace|[of] p1a: Gyarados\n" +
+		"|switch|p2a: Snorlax|Snorlax|100/100")
+	assert_eq(b.side("p2").pokemon["Ditto"].ability, "Imposter", "Imposter restored")
 
 
 func test_shell_bell_magician_and_fling_reveal_the_right_holder() -> void:
@@ -250,9 +290,13 @@ func test_shell_bell_magician_and_fling_reveal_the_right_holder() -> void:
 
 	b = _battle("|switch|p1a: X|Ambipom|100/100\n|switch|p2a: Y|Blissey|40/100\n" +
 		"|-heal|p2a: Y|46/100|[from] item: Leftovers\n|move|p1a: X|Fling|p2a: Y\n" +
-		"|-heal|p2a: Y|71/100|[from] item: Sitrus Berry\n|-enditem|p1a: X|Sitrus Berry|[from] move: Fling")
+		"|-boost|p2a: Y|atk|1|[from] item: Liechi Berry\n|-enditem|p1a: X|Liechi Berry|[from] move: Fling")
 	assert_eq(b.side("p2").active_pokemon().item, "Leftovers", "a flung berry isn't the target's item")
 	assert_eq(b.side("p1").active_pokemon().item, "", "the flinger's item is gone")
+	b = _battle("|switch|p1a: X|Ambipom|100/100\n|switch|p2a: Y|Blissey|40/100\n|move|p1a: X|Fling|p2a: Y\n" +
+		"|-heal|p2a: Y|65/100|[from] item: Sitrus Berry|[of] p1a: X\n|-enditem|p1a: X|Sitrus Berry|[from] move: Fling")
+	assert_eq(b.side("p2").active_pokemon().item, "", "a flung Sitrus Berry (credited to the flinger) isn't the target's")
+	assert_eq(b.side("p1").active_pokemon().item, "", "nor the flinger's any more")
 
 
 func test_replace_moves_the_disguise_state_to_the_revealed_pokemon() -> void:

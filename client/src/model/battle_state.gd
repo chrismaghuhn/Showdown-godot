@@ -95,6 +95,7 @@ func apply(msg: PSMessage) -> void:
 			format = msg.arg(0)
 		"turn":
 			turn = msg.arg(0).to_int()
+			_fling = {}
 		"move":
 			# Moves called by another move or ability (Metronome, Magic Bounce, Dancer …) aren't
 			# the user's own; a locked-in repeat (Outrage), Sleep Talk's pick and Pursuit on a
@@ -110,7 +111,8 @@ func apply(msg: PSMessage) -> void:
 			var mon := s.get_or_add(ref["name"])
 			mon.apply_details(msg.arg(1))
 			mon.before_switch = {"hp": mon.hp, "max_hp": mon.max_hp, "status": mon.status, "fainted": mon.fainted,
-				"moves": mon.revealed_moves.size(), "item": mon.item, "ability": mon.ability}
+				"moves": mon.revealed_moves.size(), "item": mon.item, "prev_item": mon.prev_item, "ability": mon.ability}
+			mon.moves_since_switch = PackedStringArray()
 			mon.apply_condition(msg.arg(2))
 			s.set_active(ref["slot"], mon)
 		"replace":
@@ -221,8 +223,10 @@ func apply(msg: PSMessage) -> void:
 			# Trace, Receiver, Power of Alchemy: the copied ability is also "[of]"'s own, and
 			# the copier gets its own ability back when it switches out.
 			if from in COPIED_ABILITY_SOURCES:
+				# Its own ability: as known so far (an Imposter Ditto), else the replaced one.
 				if mon.base_ability.is_empty():
-					mon.base_ability = msg.arg(2) if not msg.arg(2).is_empty() else effect_name(from)
+					mon.base_ability = mon.ability if not mon.ability.is_empty() \
+						else (msg.arg(2) if not msg.arg(2).is_empty() else effect_name(from))
 				if str(msg.kwargs.get("of", "")).contains(": "):
 					get_pokemon(msg.kwargs["of"]).ability = msg.arg(1)
 			mon.ability = msg.arg(1)

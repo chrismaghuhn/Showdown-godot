@@ -17,6 +17,8 @@ var boosts := {}
 var moves := PackedStringArray()
 ## Moves seen in battle (names), mainly for the opponent.
 var revealed_moves := PackedStringArray()
+## Moves it used since its last switch-in (for |replace|: they were the revealed Pokémon's).
+var moves_since_switch := PackedStringArray()
 ## Item and ability: from |request| (ids) for own Pokémon, from protocol (names) once revealed.
 var item := ""
 var ability := ""
@@ -105,13 +107,16 @@ func take_over_from(disguise: BattlePokemon, own := false) -> void:
 		max_hp = disguise.max_hp
 		status = disguise.status
 		fainted = disguise.fainted
-		var seen := int(before.get("moves", disguise.revealed_moves.size()))
-		for move_name in disguise.revealed_moves.slice(seen):
+		for move_name in disguise.moves_since_switch:
 			reveal_move(move_name)
-		disguise.revealed_moves = disguise.revealed_moves.slice(0, seen)
+		disguise.revealed_moves = disguise.revealed_moves.slice(0, int(before.get("moves", disguise.revealed_moves.size())))
+		disguise.moves_since_switch = PackedStringArray()
 		if disguise.item != str(before.get("item", disguise.item)):
 			item = disguise.item
 			disguise.item = str(before["item"])
+		if disguise.prev_item != str(before.get("prev_item", disguise.prev_item)):
+			prev_item = disguise.prev_item
+			disguise.prev_item = str(before["prev_item"])
 		if disguise.ability != str(before.get("ability", disguise.ability)):
 			ability = disguise.ability
 			disguise.ability = str(before["ability"])
@@ -127,5 +132,9 @@ func take_over_from(disguise: BattlePokemon, own := false) -> void:
 
 
 func reveal_move(move_name: String) -> void:
-	if not move_name.is_empty() and not move_name in revealed_moves:
+	if move_name.is_empty():
+		return
+	if not move_name in revealed_moves:
 		revealed_moves.append(move_name)
+	if not move_name in moves_since_switch:
+		moves_since_switch.append(move_name)
