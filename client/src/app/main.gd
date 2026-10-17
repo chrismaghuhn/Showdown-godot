@@ -9,8 +9,9 @@ const SCREENS := {
 	&"dev-console": preload("res://src/ui/screens/dev_console/dev_console.tscn"),
 	&"theme-gallery": preload("res://src/ui/screens/theme_gallery/theme_gallery.tscn"),
 	&"battle": preload("res://src/ui/screens/battle/battle_screen.tscn"),
+	&"settings": preload("res://src/ui/screens/settings/settings_screen.tscn"),
 }
-const TAB_TITLES := {&"dev-console": "Console", &"theme-gallery": "Theme gallery", &"battle": "Battle"}
+const TAB_TITLES := {&"dev-console": "Console", &"theme-gallery": "Theme gallery", &"battle": "Battle", &"settings": "Settings"}
 const DevAutomation := preload("res://src/app/dev_automation.gd")
 
 ## Screens are created on first use and kept, so switching back keeps their state.
@@ -49,10 +50,18 @@ func _build_header() -> void:
 	_tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_tabs.tab_changed.connect(_on_tab_changed)
 	row.add_child(_tabs)
-	for id: StringName in [&"dev-console", &"theme-gallery"]:
+	for id: StringName in [&"dev-console", &"theme-gallery", &"settings"]:
 		_add_tab(id, TAB_TITLES[id])
 	_content.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	column.add_child(_content)
+	# Toasts float above every screen, bottom-right (design: max 3, newest on top).
+	var toasts := ToastStack.new()
+	toasts.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	toasts.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	toasts.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	toasts.offset_right = -16
+	toasts.offset_bottom = -16
+	add_child(toasts)
 
 
 func show_screen(screen_id: StringName) -> void:
@@ -70,6 +79,7 @@ func show_screen(screen_id: StringName) -> void:
 	_syncing_tabs = true
 	_tabs.current_tab = _tab_ids.find(screen_id)
 	_syncing_tabs = false
+	EventBus.screen_changed.emit(screen_id)
 
 
 func _add_tab(screen_id: StringName, title: String) -> void:

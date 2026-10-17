@@ -6,6 +6,7 @@ extends Node
 ##       --search=gen9randombattle --quit-after-battle --timeout=300
 ##   godot --path client --headless -- --check-data [--data-url=...] [--sprite-url=...]
 ##   godot --path client -- --screen=theme-gallery --theme=classic-light --screenshot=/tmp/shot.png
+##   ... --notify-test   (sends the settings' test notification: toast, sound, desktop)
 ##   ... --server=local --search=gen9randombattle --screenshot=/tmp/battle.png --screenshot-turn=3
 ##       (screenshot once the battle reaches that turn, then keep playing)
 ## Screenshots render the app into an offscreen viewport of exactly --screenshot-size
@@ -22,6 +23,8 @@ func _ready() -> void:
 	if AppConfig.has_cli("check-data"):
 		_check_data()
 		return
+	if AppConfig.has_cli("notify-test"):
+		Notifier.send_test.call_deferred()
 	if AppConfig.has_cli("screenshot") and not AppConfig.has_cli("screenshot-turn"):
 		_screenshot(AppConfig.cli("screenshot"), true)
 		return

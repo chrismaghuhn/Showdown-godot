@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "name": "Default",
+  "author": "ObsydianX — Interface SFX Pack 1 (CC0)",
+  "sounds": {
+    "battle_found": "battle-found.wav",
+    "your_turn": "your-turn.wav",
+    "timer_low": "timer-low.wav",
+    "challenge": "challenge.wav",
+    "mention": "message.wav",
+    "private_message": "message.wav",
+    "battle_ended": "challenge.wav"
+  }
+}

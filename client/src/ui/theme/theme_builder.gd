@@ -73,6 +73,7 @@ func _build() -> void:
 	_build_tabs()
 	_build_popups()
 	_build_scrolling()
+	_build_toggle_icons()
 	_build_battle()
 
 
@@ -405,6 +406,65 @@ func _build_scrolling() -> void:
 	theme.set_color("font_color", "ItemList", c("color.text.primary"))
 	theme.set_color("font_selected_color", "ItemList", c("color.text.primary"))
 	theme.set_color("font_hovered_color", "ItemList", c("color.text.primary"))
+
+
+# --- Toggle icons -----------------------------------------------------------------------
+
+## Checkbox, radio and switch icons drawn from tokens (Godot's defaults are invisible on dark
+## surfaces). Rendered from SVG at 2x and shown at their logical size, so they stay sharp.
+func _build_toggle_icons() -> void:
+	var box_border := _hex(c("color.border.control"))
+	var box_fill := _hex(c("color.surface.sunken"))
+	var on := _hex(c("color.accent.default"))
+	var mark := _hex(c("color.text.on-accent"))
+	var off_border := _hex(c("color.border.subtle"))
+	var off_mark := _hex(c("color.text.disabled"))
+	var stroke := maxf(1.5, float(_bw))
+	var check := "<path d='M4.5 8.3l2.3 2.3 4.7-5' fill='none' stroke='%s' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/>"
+	var square := "<rect x='1.5' y='1.5' width='13' height='13' rx='3' fill='%s' stroke='%s' stroke-width='%s'/>"
+	var circle := "<circle cx='8' cy='8' r='6.5' fill='%s' stroke='%s' stroke-width='%s'/>"
+	var icons := {
+		"unchecked": _svg16(square % [box_fill, box_border, stroke]),
+		"checked": _svg16(square % [on, on, stroke] + check % mark),
+		"unchecked_disabled": _svg16(square % ["none", off_border, stroke]),
+		"checked_disabled": _svg16(square % ["none", off_border, stroke] + check % off_mark),
+		"radio_unchecked": _svg16(circle % [box_fill, box_border, stroke]),
+		"radio_checked": _svg16(circle % [on, on, stroke] + "<circle cx='8' cy='8' r='2.6' fill='%s'/>" % mark),
+		"radio_unchecked_disabled": _svg16(circle % ["none", off_border, stroke]),
+		"radio_checked_disabled": _svg16(circle % ["none", off_border, stroke] + "<circle cx='8' cy='8' r='2.6' fill='%s'/>" % off_mark),
+	}
+	for icon_name: String in icons:
+		theme.set_icon(icon_name, "CheckBox", icons[icon_name])
+	# Switch: 32 × 18 track with a knob.
+	var track := "<rect x='1' y='1' width='30' height='16' rx='8' fill='%s' stroke='%s' stroke-width='%s'/>"
+	var knob := "<circle cx='%s' cy='9' r='5.5' fill='%s'/>"
+	var switches := {
+		"unchecked": _svg_icon(track % [box_fill, box_border, stroke] + knob % [9, _hex(c("color.text.secondary"))], Vector2i(32, 18)),
+		"checked": _svg_icon(track % [on, on, stroke] + knob % [23, mark], Vector2i(32, 18)),
+		"unchecked_disabled": _svg_icon(track % ["none", off_border, stroke] + knob % [9, off_mark], Vector2i(32, 18)),
+		"checked_disabled": _svg_icon(track % ["none", off_border, stroke] + knob % [23, off_mark], Vector2i(32, 18)),
+	}
+	for icon_name: String in switches:
+		theme.set_icon(icon_name, "CheckButton", switches[icon_name])
+		theme.set_icon(icon_name + "_mirrored", "CheckButton", switches[icon_name])
+
+
+func _svg16(content: String) -> Texture2D:
+	return _svg_icon(content, Vector2i(16, 16))
+
+
+func _svg_icon(content: String, logical: Vector2i) -> Texture2D:
+	var svg := "<svg xmlns='http://www.w3.org/2000/svg' width='%d' height='%d' viewBox='0 0 %d %d'>%s</svg>" % [
+		logical.x, logical.y, logical.x, logical.y, content]
+	var image := Image.new()
+	image.load_svg_from_string(svg, 2.0)
+	var texture := ImageTexture.create_from_image(image)
+	texture.set_size_override(logical)
+	return texture
+
+
+static func _hex(color: Color) -> String:
+	return "#" + color.to_html(color.a < 1.0)
 
 
 # --- Battle components ----------------------------------------------------------------

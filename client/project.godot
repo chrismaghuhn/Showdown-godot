@@ -25,6 +25,8 @@ Connection="*res://src/net/connection.gd"
 Rooms="*res://src/core/room_manager.gd"
 GameData="*res://src/core/game_data.gd"
 Themes="*res://src/ui/theme/theme_manager.gd"
+Sounds="*res://src/core/sound_bank.gd"
+Notifier="*res://src/core/notifier.gd"
 Plugins="*res://src/plugins/plugin_manager.gd"
 
 [display]
