@@ -32,8 +32,10 @@ func show_toast(toast: Dictionary) -> void:
 	add_child(panel)
 	move_child(panel, 0)
 	var max_toasts := maxi(int(Themes.tokens.num("toast.max")) if Themes.tokens != null else 3, 1)
-	while get_child_count() > max_toasts:
-		_close(get_child(get_child_count() - 1))
+	# Closing toasts stay children until their exit fade ends, so count only the open ones.
+	var open := get_children().filter(func(child: Node) -> bool: return not child.get_meta("closing", false))
+	while open.size() > max_toasts:
+		_close(open.pop_back())  # oldest is at the bottom
 	# Enter: fade + short slide (instant slide, short fade with reduce motion).
 	panel.modulate.a = 0.0
 	var tween := panel.create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
