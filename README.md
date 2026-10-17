@@ -116,7 +116,8 @@ See [docs/architecture.md](docs/architecture.md) for the layer rules,
 [docs/plugin-api.md](docs/plugin-api.md) for writing plugins and
 [docs/data-sources.md](docs/data-sources.md) for game data, caching and mirrors and
 [docs/theming.md](docs/theming.md) for themes and design tokens,
-[docs/notifications.md](docs/notifications.md) for notifications and sound packs.
+[docs/notifications.md](docs/notifications.md) for notifications and sound packs,
+[docs/official-server.md](docs/official-server.md) for how the client behaves on the official server.
 Third-party assets are listed in [CREDITS.md](CREDITS.md).
 
 ## License

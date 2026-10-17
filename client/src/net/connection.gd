@@ -51,6 +51,11 @@ var last_error := ""
 var stay_signed_in := false
 
 var _ws: WebSocketPeer
+## Outgoing messages wait here when the throttle says "not yet" (see SendThrottle).
+var _outbox: Array[String] = []
+var _throttle := SendThrottle.new()
+## Tests send through this instead of the websocket.
+var _transport := Callable()
 var _login := LoginClient.new()
 var _pending_login := {}
 var _retry_at_msec := 0
@@ -130,11 +135,27 @@ func retry_in() -> float:
 
 
 ## Sends `text` to a room. Use room_id "" for global commands like /search or /trn.
+## Messages go out at the server's pace (SendThrottle) and in order; line breaks become
+## spaces, because the server runs every line of a message as its own command.
 func send(room_id: String, text: String) -> void:
 	if state != State.CONNECTED:
 		push_warning("Connection.send() while not connected: " + text)
 		return
-	_ws.send_text(room_id + "|" + text)
+	var line := room_id.replace("|", "").replace("\n", "").replace("\r", "") + "|" \
+		+ text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ")
+	_outbox.append(line)
+	_flush_outbox()
+
+
+## Sends what the throttle allows right now; the rest waits for _process.
+func _flush_outbox() -> void:
+	var now := Time.get_ticks_msec()
+	while not _outbox.is_empty() and _throttle.take(now):
+		var line: String = _outbox.pop_front()
+		if _transport.is_valid():
+			_transport.call(line)
+		elif _ws != null:
+			_ws.send_text(line)
 
 
 ## Sends a battle decision, e.g. choose("battle-gen9randombattle-1", "move 2", 3).
@@ -231,6 +252,8 @@ func _process(_delta: float) -> void:
 			_handle_frame(_ws.get_packet().get_string_from_utf8())
 		if gen != _socket_gen:
 			return
+		if not _outbox.is_empty():
+			_flush_outbox()
 	elif ready == WebSocketPeer.STATE_CLOSED:
 		var reason := _ws.get_close_reason()
 		_on_socket_lost(reason if not reason.is_empty() else tr("The connection closed (code %d)") % _ws.get_close_code())
@@ -296,6 +319,9 @@ func _close_socket() -> void:
 		_ws = null
 	# A sign-in answer belongs to the challstr of this socket; a late one is useless.
 	_login.cancel()
+	# Unsent messages belong to the old session (a choice for an old request, a stale search).
+	_outbox.clear()
+	_throttle.reset()
 	_socket_gen += 1
 
 
@@ -334,6 +360,12 @@ func _handle_session_message(msg: PSMessage) -> void:
 				EventBus.logged_in.emit(username)
 			if reconnecting:
 				_finish_reconnect()
+		"raw":
+			# The server dropped a message anyway ("...typing too quickly"): pause, and say so,
+			# because it may have been a move.
+			if msg.arg(0).contains("message-throttle-notice"):
+				_throttle.back_off(Time.get_ticks_msec())
+				EventBus.popup.emit(tr("Showdown dropped a message because too many were sent at once. If a move didn't go through, choose it again."))
 		"nametaken":
 			signing_in = false
 			if _relogin and _rename_retries < RENAME_RETRIES:

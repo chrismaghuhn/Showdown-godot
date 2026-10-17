@@ -48,6 +48,9 @@ A mirror only has to serve the same file names as Showdown:
 <sprite_url>gen5-back-shiny/<sprite-id>.png
 ```
 
+Whether to use a mirror for the official server is one of the questions for the Showdown team,
+see [official-server.md](official-server.md).
+
 Recommendations:
 - Serve `ETag` or `Last-Modified` headers (nginx and Caddy do by default) so revalidation stays cheap.
 - Sync the data files from Showdown on a schedule (e.g. daily), not per user request.
