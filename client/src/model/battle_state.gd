@@ -27,6 +27,8 @@ var field_conditions := PackedStringArray()
 var field_turns := {}
 ## Turn whose end-of-turn upkeep (|upkeep|) already ran.
 var _upkeep_turn := -1
+## The Fling being used: its target and the target's item before it ({} = none).
+var _fling := {}
 ## Battle timer (from |inactive|): seconds left this turn and in total; -1 = unknown.
 var timer_on := false
 var timer_turn_seconds := -1
@@ -45,9 +47,10 @@ var awaiting_choice := false
 var expired := false
 var winner := ""
 
-## Abilities whose "[of]" is the other Pokémon involved (the attacker or the victim), not the
-## holder: the message's own Pokémon holds them.
-const HELD_BY_TARGET := ["Water Absorb", "Volt Absorb", "Dry Skin", "Earth Eater", "Magician", "Pickpocket"]
+## Abilities and items whose "[of]" is the other Pokémon involved (the attacker or the victim),
+## not the holder: the message's own Pokémon holds them.
+const HELD_BY_TARGET := ["Water Absorb", "Volt Absorb", "Dry Skin", "Earth Eater", "Magician", "Pickpocket",
+	"Shell Bell"]
 ## Every stat with a stage.
 const BOOST_STATS := ["atk", "def", "spa", "spd", "spe", "accuracy", "evasion"]
 ## "-ability" sources that copy the "[of]" Pokémon's ability.
@@ -98,6 +101,7 @@ func apply(msg: PSMessage) -> void:
 			format = msg.arg(0)
 		"turn":
 			turn = msg.arg(0).to_int()
+			_fling = {}
 		"move":
 			# Moves called by another move or ability (Metronome, Magic Bounce, Dancer …) aren't
 			# the user's own; a locked-in repeat (Outrage), Sleep Talk's pick and Pursuit on a
@@ -105,12 +109,16 @@ func apply(msg: PSMessage) -> void:
 			var from := str(msg.kwargs.get("from", ""))
 			if from.is_empty() or from in ["lockedmove", "move: Sleep Talk", "move: " + msg.arg(1)]:
 				get_pokemon(msg.arg(0)).reveal_move(msg.arg(1))
+			if msg.arg(1) == "Fling" and msg.arg(2).contains(": "):
+				_fling = {"target": msg.arg(2), "item": get_pokemon(msg.arg(2)).item}
 		"switch", "drag":
 			var ref := parse_ident(msg.arg(0))
 			var s := side(ref["side"])
 			var mon := s.get_or_add(ref["name"])
 			mon.apply_details(msg.arg(1))
-			mon.before_switch = {"hp": mon.hp, "max_hp": mon.max_hp, "status": mon.status, "fainted": mon.fainted}
+			mon.before_switch = {"hp": mon.hp, "max_hp": mon.max_hp, "status": mon.status, "fainted": mon.fainted,
+				"moves": mon.revealed_moves.size(), "item": mon.item, "prev_item": mon.prev_item, "ability": mon.ability}
+			mon.moves_since_switch = PackedStringArray()
 			mon.apply_condition(msg.arg(2))
 			s.set_active(ref["slot"], mon)
 		"replace":
@@ -121,8 +129,8 @@ func apply(msg: PSMessage) -> void:
 			var disguise := s.active_pokemon(ref["slot"])
 			mon.apply_details(msg.arg(1))
 			if disguise != null and disguise != mon:
-				# Our own HP comes exactly from |request|, not from the disguise.
-				mon.take_over_from(disguise, ref["side"] != my_side)
+				# Our own HP and moves come exactly from |request|, not from the disguise.
+				mon.take_over_from(disguise, ref["side"] == my_side)
 			mon.apply_condition(msg.arg(2))
 			s.set_active(ref["slot"], mon)
 		"detailschange":
@@ -202,6 +210,9 @@ func apply(msg: PSMessage) -> void:
 			var mon := get_pokemon(msg.arg(0))
 			mon.item = msg.arg(1)
 			mon.prev_item = ""
+			# Magician: the victim ("[of]") loses the item it stole.
+			if str(msg.kwargs.get("from", "")) == "ability: Magician" and str(msg.kwargs.get("of", "")).contains(": "):
+				get_pokemon(msg.kwargs["of"]).item = ""
 		"-enditem":
 			var mon := get_pokemon(msg.arg(0))
 			mon.item = ""
@@ -209,11 +220,25 @@ func apply(msg: PSMessage) -> void:
 			# Bug Bite / Pluck: the eater gets the berry's effect, but never held it.
 			if str(msg.kwargs.get("from", "")) == "stealeat" and str(msg.kwargs.get("of", "")).contains(": "):
 				get_pokemon(msg.kwargs["of"]).prev_item = msg.arg(1)
+			# Fling: the target used the flung item before this message; it never held it.
+			if str(msg.kwargs.get("from", "")) == "move: Fling" and not _fling.is_empty():
+				var target := get_pokemon(_fling["target"])
+				if target.item == msg.arg(1) and _fling["item"] != msg.arg(1):
+					target.item = _fling["item"]
+				_fling = {}
 		"-ability":
-			get_pokemon(msg.arg(0)).ability = msg.arg(1)
-			# Trace, Receiver, Power of Alchemy: the copied ability is also "[of]"'s own.
-			if str(msg.kwargs.get("from", "")) in COPIED_ABILITY_SOURCES and str(msg.kwargs.get("of", "")).contains(": "):
-				get_pokemon(msg.kwargs["of"]).ability = msg.arg(1)
+			var mon := get_pokemon(msg.arg(0))
+			var from := str(msg.kwargs.get("from", ""))
+			# Trace, Receiver, Power of Alchemy: the copied ability is also "[of]"'s own, and
+			# the copier gets its own ability back when it switches out.
+			if from in COPIED_ABILITY_SOURCES:
+				# Its own ability: as known so far (an Imposter Ditto), else the replaced one.
+				if mon.base_ability.is_empty():
+					mon.base_ability = mon.ability if not mon.ability.is_empty() \
+						else (msg.arg(2) if not msg.arg(2).is_empty() else effect_name(from))
+				if str(msg.kwargs.get("of", "")).contains(": "):
+					get_pokemon(msg.kwargs["of"]).ability = msg.arg(1)
+			mon.ability = msg.arg(1)
 		"-terastallize":
 			get_pokemon(msg.arg(0)).tera_type = msg.arg(1)
 		"-start":
@@ -247,7 +272,7 @@ func _reveal_from_kwargs(msg: PSMessage) -> void:
 	if source.begins_with("ability: ") and (msg.type == "-ability" or msg.type == "-enditem"):
 		return
 	var holder_ident := str(msg.kwargs.get("of", msg.arg(0)))
-	if source.begins_with("ability: ") and source.substr(9) in HELD_BY_TARGET:
+	if effect_name(source) in HELD_BY_TARGET:
 		holder_ident = msg.arg(0)
 	if not holder_ident.contains(": "):
 		return
