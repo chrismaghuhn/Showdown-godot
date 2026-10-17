@@ -239,10 +239,7 @@ func _on_data_loaded(dex: Dex) -> void:
 func _on_battle_started(battle: BattleState) -> void:
 	_current_battle = battle.room_id
 	_print_line(tr("Battle started: %s") % battle.room_id, COLOR_SYSTEM)
-	for child in _sprite_row.get_children():
-		child.queue_free()
-	_sprites.clear()
-	_sprite_keys.clear()
+	_clear_sprites()
 	_update_battle_info(battle)
 
 
@@ -258,12 +255,35 @@ func _on_battle_updated(battle: BattleState, msg: PSMessage) -> void:
 
 
 ## Only leaving the room ends "the current battle": an ended battle's room still takes chat
-## (and /savereplay) until it is left. Afterwards the command box sends globally again.
+## (and /savereplay) until it is left. Then the console follows another running battle (one
+## waiting for our choice first), or the command box sends globally again.
 func _on_room_left(room_id: String) -> void:
 	if room_id != _current_battle:
 		return
 	_current_battle = ""
 	_clear_actions()
+	_clear_sprites()
+	_battle_info.text = ""
+	var next: BattleState = null
+	for battle: BattleState in Rooms.battles.values():
+		if battle.room_id == room_id or battle.ended:
+			continue
+		if next == null or (battle.awaiting_choice and not next.awaiting_choice):
+			next = battle
+	if next == null:
+		return
+	_current_battle = next.room_id
+	_print_line(tr("Now showing battle: %s") % next.room_id, COLOR_SYSTEM)
+	_update_battle_info(next)
+	if next.awaiting_choice:
+		_on_battle_request(next, next.request)
+
+
+func _clear_sprites() -> void:
+	for child in _sprite_row.get_children():
+		child.queue_free()
+	_sprites.clear()
+	_sprite_keys.clear()
 
 
 func _update_battle_info(battle: BattleState) -> void:
@@ -380,6 +400,7 @@ func _add_action(text: String, room_id: String, choice: String, rqid: int) -> Bu
 		Connection.choose(room_id, choice, rqid)
 		_clear_actions())
 	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	button.set_meta(&"choice", choice)
 	_actions.add_child(button)
 	return button
 
