@@ -25,7 +25,14 @@ static func from_sources(pokedex: Dictionary, movedex: Dictionary, itemdex: Dict
 		abilitydex: Dictionary, typechart: Dictionary) -> Dex:
 	var dex := Dex.new()
 	for id: String in pokedex:
-		dex.species[id] = DexSpecies.from_dict(id, pokedex[id])
+		var entry: Dictionary = pokedex[id]
+		# Cosmetic formes (Vivillon patterns, Minior colours …) only carry their name and
+		# forme; types, stats and abilities come from the base species.
+		if entry.get("isCosmeticForme", false):
+			var base: Variant = pokedex.get(PSParser.to_id(str(entry.get("baseSpecies", ""))))
+			if base is Dictionary:
+				entry = (base as Dictionary).merged(entry, true)
+		dex.species[id] = DexSpecies.from_dict(id, entry)
 	for id: String in movedex:
 		dex.moves[id] = DexMove.from_dict(id, movedex[id])
 	for id: String in itemdex:

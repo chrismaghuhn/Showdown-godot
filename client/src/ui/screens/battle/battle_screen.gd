@@ -673,7 +673,8 @@ func _refresh_choices(mine: BattleSide, my_active: BattlePokemon, opp_active: Ba
 			slot.visible = false
 			continue
 		var species: DexSpecies = dex.get_species(mon.species) if dex != null else null
-		var tint := Themes.color("color.type.%s.bg" % species.types[0].to_lower()) if species != null else Themes.color("color.surface.hover")
+		var tint := Themes.color("color.type.%s.bg" % species.types[0].to_lower()) if species != null and not species.types.is_empty() \
+			else Themes.color("color.surface.hover")
 		var can_switch: bool = choosing and BattleChoices.can_switch_to(_request, mon)
 		slot.show_pokemon(mon, true, tint, "Shift+%d" % (i + 1) if can_switch else "", can_switch and mon.fainted)
 		slot.disabled = not (can_switch or (team_preview and choosing))

@@ -72,3 +72,23 @@ func test_effectiveness() -> void:
 	assert_eq(dex.effectiveness("Normal", PackedStringArray(["Ghost"])), 0.0, "ghost immune to normal")
 	assert_eq(dex.effectiveness("Fire", PackedStringArray(["Water", "Grass"])), 1.0, "cancels out")
 	assert_eq(dex.effectiveness("Fire", PackedStringArray(["Unknown"])), 1.0, "unknown type neutral")
+
+
+func test_cosmetic_formes_inherit_from_the_base_species() -> void:
+	var pokedex := {
+		"minior": {"num": 774, "name": "Minior", "baseForme": "Red", "types": ["Rock", "Flying"],
+			"baseStats": {"hp": 60, "atk": 100, "def": 60, "spa": 100, "spd": 60, "spe": 120},
+			"abilities": {"0": "Shields Down"}, "weightkg": 0.3, "tier": "ZU"},
+		"miniororange": {"isCosmeticForme": true, "name": "Minior-Orange", "baseSpecies": "Minior",
+			"forme": "Orange", "color": "Red"},
+	}
+	var dex := Dex.from_sources(pokedex, {}, {}, {}, {})
+	var orange := dex.get_species("Minior-Orange")
+	assert_eq(orange.name, "Minior-Orange", "own name")
+	assert_eq(orange.forme, "Orange", "own forme")
+	assert_eq(orange.types, PackedStringArray(["Rock", "Flying"]), "types from the base species")
+	assert_eq(orange.base_stats["spe"], 120, "stats from the base species")
+	assert_eq(orange.abilities["0"], "Shields Down", "abilities from the base species")
+	assert_eq(orange.num, 774, "dex number from the base species")
+	assert_eq(orange.sprite_id(), "minior-orange", "sprite of the cosmetic forme")
+	assert_eq(dex.get_species("Minior").types, PackedStringArray(["Rock", "Flying"]), "base unchanged")
