@@ -47,6 +47,8 @@ func _on_message(msg: PSMessage) -> void:
 			EventBus.battle_request.emit(battle, data)
 		return
 	battle.apply(msg)
+	if msg.type == "player":
+		battle.claim_side_by_name(Connection.username)
 	EventBus.battle_updated.emit(battle, msg)
 	if msg.type == "win" or msg.type == "tie":
 		EventBus.battle_ended.emit(battle, battle.winner)
