@@ -29,6 +29,9 @@ var _upkeep_turn := -1
 var timer_on := false
 var timer_turn_seconds := -1
 var timer_total_seconds := -1
+## Counts the timer updates ("Time left" and |inactiveoff|), so a local countdown can resync on
+## each one even when the server repeats the same values.
+var timer_updates := 0
 ## Latest |request| payload (what we may choose this turn).
 var request := {}
 var ended := false
@@ -214,6 +217,7 @@ func apply(msg: PSMessage) -> void:
 			timer_on = false
 			timer_turn_seconds = -1
 			timer_total_seconds = -1
+			timer_updates += 1
 		"win":
 			ended = true
 			winner = msg.arg(0)
@@ -253,6 +257,7 @@ func _apply_timer(text: String) -> void:
 		timer_on = true
 		timer_turn_seconds = found.get_string(1).to_int()
 		timer_total_seconds = found.get_string(2).to_int()
+		timer_updates += 1
 	elif text.contains("timer is ON") or text.contains("timer is now ON"):
 		timer_on = true
 
