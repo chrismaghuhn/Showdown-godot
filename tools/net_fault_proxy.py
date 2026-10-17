@@ -90,6 +90,13 @@ async def on_client(target_host: str, target_port: int, reader: asyncio.StreamRe
 
 
 async def on_control(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+    try:
+        await handle_control(reader, writer)
+    except (ConnectionError, OSError):
+        pass  # the client hung up without a goodbye; its commands were already applied
+
+
+async def handle_control(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
     global mode
     while line := await reader.readline():
         command = line.decode(errors="replace").strip()
