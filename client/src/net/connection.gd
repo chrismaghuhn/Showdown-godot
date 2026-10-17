@@ -25,6 +25,9 @@ const CLOSING_TIMEOUT_SEC := 5.0
 ## After a reconnect the server may still hold the old connection, and with it the name.
 const RENAME_RETRY_SEC := 5.0
 const RENAME_RETRIES := 6
+## A session that drops sooner than this (and wasn't signed in yet) counts as a failed
+## attempt, so a server that accepts and then closes right away is eventually given up on.
+const STABLE_SESSION_SEC := 10.0
 
 var state: State = State.DISCONNECTED
 var server_id := ""
@@ -55,6 +58,7 @@ var _attempt_started_msec := 0
 var _closing_since_msec := -1
 ## |challstr| arrived on this socket: the server accepted the connection.
 var _session_up := false
+var _session_started_msec := 0
 ## The running sign-in restores the session after a reconnect.
 var _relogin := false
 var _rename_retries := 0
@@ -89,6 +93,8 @@ func connect_to_server(id: String) -> void:
 	gave_up = false
 	last_error = ""
 	_relogin = false
+	_rename_retries = 0
+	_pending_login.clear()
 	var api := api_base()
 	_login.session_cookie = SessionStore.load_cookie(api) if stay_signed_in and not api.is_empty() else ""
 	_open()
@@ -99,6 +105,7 @@ func disconnect_from_server() -> void:
 	_close_socket()
 	_reset_session()
 	_pending_login.clear()
+	_relogin = false
 	attempt = 0
 	reconnecting = false
 	gave_up = false
@@ -151,6 +158,8 @@ func sign_out() -> void:
 		SessionStore.clear(api)
 	session_name = ""
 	signing_in = false
+	# Signing out also means: don't sign in again on the next start.
+	AppConfig.set_setting("account", "username", "")
 	if state == State.CONNECTED and signed_in:
 		send("", "/logout")
 	signed_in = false
@@ -187,7 +196,8 @@ func status() -> Dictionary:
 	return {
 		"state": state, "attempt": attempt, "max_attempts": ReconnectPolicy.MAX_ATTEMPTS,
 		"retry_in": retry_in(), "reconnecting": reconnecting, "gave_up": gave_up,
-		"signed_in": signed_in, "signing_in": signing_in or not _pending_login.is_empty(),
+		"session_up": _session_up, "signed_in": signed_in,
+		"signing_in": signing_in or not _pending_login.is_empty(),
 		"username": username, "session_name": session_name, "server_host": server_host(),
 		"last_error": last_error,
 	}
@@ -205,9 +215,9 @@ func _process(_delta: float) -> void:
 	_ws.poll()
 	var ready := _ws.get_ready_state()
 	if ready == WebSocketPeer.STATE_OPEN:
+		var gen := _socket_gen
 		if state != State.CONNECTED:
 			_set_state(State.CONNECTED)
-		var gen := _socket_gen
 		while gen == _socket_gen and _ws.get_available_packet_count() > 0:
 			_handle_frame(_ws.get_packet().get_string_from_utf8())
 		if gen != _socket_gen:
@@ -245,11 +255,14 @@ func _open() -> void:
 
 ## The socket closed or an attempt failed: schedule the next attempt, or give up.
 func _on_socket_lost(reason: String) -> void:
-	var was_up := _session_up
+	var stable := _session_up and (signed_in
+		or Time.get_ticks_msec() - _session_started_msec >= STABLE_SESSION_SEC * 1000)
 	_close_socket()
 	_reset_session()
 	last_error = reason
-	if was_up:
+	_relogin = false
+	_rename_retries = 0
+	if stable:
 		# An established session dropped: a fresh series of attempts.
 		reconnecting = true
 		attempt = 1
@@ -257,6 +270,8 @@ func _on_socket_lost(reason: String) -> void:
 		attempt += 1
 	else:
 		gave_up = true
+		# A typed password must not wait for a connection that may never come.
+		_pending_login.clear()
 		_set_state(State.DISCONNECTED, true)
 		EventBus.connection_error.emit(reason)
 		return
@@ -270,6 +285,8 @@ func _close_socket() -> void:
 	if _ws != null:
 		_ws.close()
 		_ws = null
+	# A sign-in answer belongs to the challstr of this socket; a late one is useless.
+	_login.cancel()
 	_socket_gen += 1
 
 
@@ -284,6 +301,7 @@ func _handle_session_message(msg: PSMessage) -> void:
 		"challstr":
 			challstr = msg.arg(0)
 			_session_up = true
+			_session_started_msec = Time.get_ticks_msec()
 			gave_up = false
 			_on_session_ready()
 		"updateuser":
@@ -301,7 +319,8 @@ func _handle_session_message(msg: PSMessage) -> void:
 			session_name = username
 			if stay_signed_in:
 				AppConfig.set_setting("account", "username", username)
-			# |updateuser| repeats on every settings change; only a new name is a sign-in.
+			# |updateuser| repeats on every settings change; only a (re-)sign-in or a new name
+			# counts. After a reconnect this fires again.
 			if not was_signed_in or PSParser.to_id(previous) != PSParser.to_id(username):
 				EventBus.logged_in.emit(username)
 			if reconnecting:
@@ -355,7 +374,7 @@ func _sign_in_again() -> void:
 	signing_in = true
 	if api_base().is_empty():
 		send("", "/trn " + session_name)
-	elif not _login.session_cookie.is_empty():
+	elif PSParser.to_id(LoginClient.cookie_username(_login.session_cookie)) == PSParser.to_id(session_name):
 		_login.request_upkeep(api_base(), challstr)
 	else:
 		_login.request_assertion(api_base(), session_name, "", challstr)
@@ -374,21 +393,25 @@ func _end_relogin() -> void:
 		_finish_reconnect()
 
 
+## Login server answers. _close_socket() cancels running requests, and these guards drop
+## anything that still arrives without a live session - it belonged to an older socket.
 func _on_assertion_ready(name: String, assertion: String) -> void:
-	# An assertion only fits the challstr it was made for; after a drop it's useless.
-	if state != State.CONNECTED or challstr.is_empty():
-		signing_in = false
+	if not _session_up:
 		return
 	send("", "/trn %s,0,%s" % [name, assertion])
 
 
 func _on_password_required(name: String) -> void:
+	if not _session_up:
+		return
 	signing_in = false
 	_end_relogin()
 	EventBus.password_required.emit(name)
 
 
 func _on_login_failed(reason: String) -> void:
+	if not _session_up:
+		return
 	signing_in = false
 	_end_relogin()
 	EventBus.login_failed.emit(reason)
@@ -401,6 +424,8 @@ func _on_session_changed(sid: String) -> void:
 
 
 func _on_session_expired() -> void:
+	if not _session_up:
+		return
 	signing_in = false
 	if not session_name.is_empty() and _session_up:
 		# Reconnect with an expired cookie: an unregistered name still works without it.

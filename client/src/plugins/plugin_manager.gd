@@ -153,16 +153,32 @@ func set_enabled_in_settings(id: String, enabled: bool) -> void:
 
 
 func _on_engine_error(paths: PackedStringArray, reason: String) -> void:
+	var id := plugin_for_paths(paths)
+	if not id.is_empty():
+		pause(id, reason)
+
+
+## The active plugin whose folder contains one of these script paths, or "".
+func plugin_for_paths(paths: PackedStringArray) -> String:
 	for id: String in _active.keys():
 		var m := get_manifest(id)
 		if m == null:
 			continue
-		var dirs := [m.dir.trim_suffix("/") + "/", ProjectSettings.globalize_path(m.dir).trim_suffix("/") + "/"]
 		for path in paths:
-			for dir: String in dirs:
-				if not path.is_empty() and (path.begins_with(dir) or ProjectSettings.globalize_path(path).begins_with(dir)):
-					pause(id, reason)
-					return
+			if is_inside(path, m.dir):
+				return id
+	return ""
+
+
+## True if `path` lies inside the folder `dir` (res://, user:// or absolute). The trailing
+## slash keeps plugin "foo" from matching "foo-extra".
+static func is_inside(path: String, dir: String) -> bool:
+	if path.is_empty() or dir.is_empty():
+		return false
+	if path.begins_with(dir.trim_suffix("/") + "/"):
+		return true
+	var folder := ProjectSettings.globalize_path(dir).trim_suffix("/") + "/"
+	return ProjectSettings.globalize_path(path).begins_with(folder)
 
 
 func register_panel(plugin_id: String, slot: StringName, control: Control) -> void:

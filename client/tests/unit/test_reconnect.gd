@@ -57,3 +57,54 @@ func test_rooms_skip_battles_that_no_longer_exist() -> void:
 func _feed(frame: String) -> void:
 	for msg in PSParser.parse_frame(frame):
 		EventBus.message_received.emit(msg)
+
+
+func test_restore_stops_when_the_connection_drops_again() -> void:
+	var restored: Array[int] = []
+	var on_restored := func(count: int) -> void: restored.append(count)
+	EventBus.battles_restored.connect(on_restored)
+	_feed(">battle-gen9randombattle-11\n|init|battle\n|turn|4")
+	EventBus.reconnected.emit()
+	EventBus.connection_state_changed.emit(Connection.State.WAITING)
+	_feed(">battle-gen9randombattle-11\n|init|battle\n|turn|4")
+	assert_eq(restored, [] as Array[int], "no 'Reconnected' while offline again")
+	assert_true(not Rooms.get_battle("battle-gen9randombattle-11").restored, "not part of a cancelled restore")
+	EventBus.battles_restored.disconnect(on_restored)
+	Rooms.battles.erase("battle-gen9randombattle-11")
+
+
+func test_replayed_ended_battle_is_not_news() -> void:
+	var restored: Array[int] = []
+	var ended: Array[String] = []
+	var on_restored := func(count: int) -> void: restored.append(count)
+	var on_ended := func(battle: BattleState, _winner: String) -> void: ended.append(battle.room_id)
+	EventBus.battles_restored.connect(on_restored)
+	EventBus.battle_ended.connect(on_ended)
+	var log := ">battle-gen9randombattle-12\n|init|battle\n|player|p1|Alice|1|\n|turn|9\n|win|Alice"
+	_feed(log)
+	assert_eq(ended, ["battle-gen9randombattle-12"] as Array[String], "ended once")
+	EventBus.reconnected.emit()
+	_feed(log)
+	assert_eq(ended, ["battle-gen9randombattle-12"] as Array[String], "the replayed |win| is not reported again")
+	assert_true(Rooms.get_battle("battle-gen9randombattle-12").restored, "stays in the background")
+	assert_eq(restored, [0] as Array[int], "an ended battle is not counted as restored")
+	EventBus.battles_restored.disconnect(on_restored)
+	EventBus.battle_ended.disconnect(on_ended)
+	Rooms.battles.erase("battle-gen9randombattle-12")
+
+
+func test_gone_battle_rooms_are_removed() -> void:
+	_feed(">battle-gen9randombattle-13\n|init|battle\n|turn|2")
+	EventBus.reconnected.emit()
+	_feed(">battle-gen9randombattle-13\n|noinit|nonexistent|The room \"battle-gen9randombattle-13\" does not exist.")
+	assert_eq(Rooms.get_battle("battle-gen9randombattle-13"), null, "removed")
+
+
+func test_plugin_error_paths() -> void:
+	assert_true(Plugins.is_inside("user://plugins/calc/main.gd", "user://plugins/calc"), "script in the plugin")
+	assert_true(Plugins.is_inside("user://plugins/calc/lib/x.gd", "user://plugins/calc/"), "nested, trailing slash")
+	assert_true(not Plugins.is_inside("user://plugins/calc-extra/main.gd", "user://plugins/calc"), "similar name")
+	assert_true(not Plugins.is_inside("res://src/net/connection.gd", "user://plugins/calc"), "app script")
+	assert_true(Plugins.is_inside(ProjectSettings.globalize_path("user://plugins/calc/main.gd"), "user://plugins/calc"),
+		"absolute path from a backtrace")
+	assert_eq(Plugins.plugin_for_paths(PackedStringArray(["res://src/app/main.gd", ""])), "", "no plugin")

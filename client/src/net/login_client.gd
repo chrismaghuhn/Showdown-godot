@@ -64,6 +64,13 @@ func logout(api_base: String, userid: String) -> void:
 	_set_cookie("")
 
 
+## Drops the running request; its answer never arrives. (A logout still went out.)
+func cancel() -> void:
+	if _kind != Kind.NONE and _kind != Kind.LOGOUT:
+		_http.cancel_request()
+		_kind = Kind.NONE
+
+
 func _http_get(kind: Kind, url: String) -> void:
 	_start(kind, url, HTTPClient.METHOD_GET, "")
 

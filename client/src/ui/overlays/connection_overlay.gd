@@ -58,6 +58,21 @@ func _ready() -> void:
 	ticker.timeout.connect(_refresh)
 	add_child(ticker)
 	_refresh()
+	if should_auto_connect():
+		_connect.call_deferred(str(AppConfig.get_setting("connection", "server", "")))
+
+
+## "Stay signed in" connects to the last server on launch - but not in headless runs, dev
+## automation (--server, --screenshot, --app-state) or with --offline.
+static func should_auto_connect() -> bool:
+	if not Connection.stay_signed_in or str(AppConfig.get_setting("connection", "server", "")).is_empty():
+		return false
+	if DisplayServer.get_name() == "headless":
+		return false
+	for flag in ["server", "screenshot", "app-state", "offline"]:
+		if AppConfig.has_cli(flag):
+			return false
+	return true
 
 
 ## Opens the next step: connect when offline, else the sign-in card.
@@ -95,6 +110,7 @@ func _on_state_changed(state: int) -> void:
 	# A new series of attempts (not an automatic retry) asks again after "Not now".
 	if state == Connection.State.CONNECTING and Connection.attempt == 1 and not Connection.reconnecting:
 		_ui["dismissed"] = false
+		_ui["sign_in_open"] = false
 		_error = ""
 	_refresh()
 
@@ -185,7 +201,6 @@ func _build_servers() -> Control:
 
 
 func _build_sign_in(status: Dictionary) -> Control:
-	_ui["sign_in_open"] = true
 	_sign_in = SignInCard.new()
 	var name := _typed_name
 	if name.is_empty():
@@ -247,5 +262,7 @@ func _on_sign_in_submitted(name: String, password: String, stay: bool) -> void:
 	if _password_for != "" and PSParser.to_id(name) != PSParser.to_id(_password_for):
 		_password_for = ""
 	_typed_name = name
+	# Keep the card open (busy) while this sign-in runs.
+	_ui["sign_in_open"] = true
 	Connection.login(name, password)
 	_refresh()

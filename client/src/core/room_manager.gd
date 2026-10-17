@@ -5,7 +5,9 @@ extends Node
 ## After a reconnect the server rejoins a returning user's battle rooms on its own and sends
 ## each with its full log (|init|). Battles that don't come back within RESTORE_JOIN_DELAY
 ## (e.g. the server had already dropped the user) are joined again explicitly, including the
-## running games listed in |updatesearch|. EventBus.battles_restored reports the count.
+## running games listed in |updatesearch|. EventBus.battles_restored reports the count of
+## running battles that came back. Battles that had already ended are replayed too, but
+## neither counted nor reported as ended a second time.
 
 const RESTORE_JOIN_DELAY := 1.5
 const RESTORE_TIMEOUT := 8.0
@@ -18,11 +20,14 @@ var _restoring := {}
 var _restored := 0
 var _restore_active := false
 var _restore_gen := 0
+## Rooms whose battle had ended before it was replayed: their |win| is not news.
+var _replayed_ended := {}
 
 
 func _ready() -> void:
 	EventBus.message_received.connect(_on_message)
 	EventBus.reconnected.connect(_on_reconnected)
+	EventBus.connection_state_changed.connect(_on_connection_state_changed)
 
 
 func get_battle(room_id: String) -> BattleState:
@@ -35,9 +40,13 @@ func _on_message(msg: PSMessage) -> void:
 		"init":
 			if msg.arg(0) == "battle":
 				var battle := BattleState.new(room_id)
-				battle.restored = _restore_active and (_restoring.has(room_id) or battles.has(room_id))
+				var previous: BattleState = battles.get(room_id)
+				# Every battle that comes back during a restore stays in the background.
+				battle.restored = _restore_active and (_restoring.has(room_id) or previous != null)
+				if previous != null and previous.ended:
+					_replayed_ended[room_id] = true
 				battles[room_id] = battle
-				if battle.restored:
+				if _restoring.has(room_id):
 					_restored += 1
 					_restoring.erase(room_id)
 			EventBus.room_joined.emit(room_id, msg.arg(0))
@@ -47,11 +56,16 @@ func _on_message(msg: PSMessage) -> void:
 				_finish_restore(_restore_gen)
 			return
 		"noinit":
+			# |noinit|nonexistent|... - the battle room is gone (expired on the server).
+			if _restoring.has(room_id) and msg.arg(0) == "nonexistent" and battles.has(room_id):
+				battles.erase(room_id)
+				EventBus.room_left.emit(room_id)
 			_restoring.erase(room_id)
 			if _restore_active and _restoring.is_empty():
 				_finish_restore(_restore_gen)
 		"deinit":
 			battles.erase(room_id)
+			_replayed_ended.erase(room_id)
 			EventBus.room_left.emit(room_id)
 			return
 		"updatesearch":
@@ -80,7 +94,10 @@ func _on_message(msg: PSMessage) -> void:
 		battle.claim_side_by_name(Connection.username)
 	EventBus.battle_updated.emit(battle, msg)
 	if msg.type == "win" or msg.type == "tie":
-		EventBus.battle_ended.emit(battle, battle.winner)
+		if _replayed_ended.has(room_id):
+			_replayed_ended.erase(room_id)
+		else:
+			EventBus.battle_ended.emit(battle, battle.winner)
 
 
 # --- Restoring battles after a reconnect -----------------------------------------------------
@@ -96,6 +113,15 @@ func _on_reconnected() -> void:
 	var gen := _restore_gen
 	get_tree().create_timer(RESTORE_JOIN_DELAY).timeout.connect(_join_missing.bind(gen))
 	get_tree().create_timer(RESTORE_TIMEOUT).timeout.connect(_finish_restore.bind(gen))
+
+
+## The connection dropped again before the battles were back: start over after the next
+## reconnect instead of sending /join into the void.
+func _on_connection_state_changed(state: int) -> void:
+	if state != Connection.State.CONNECTED and _restore_active:
+		_restore_gen += 1
+		_restore_active = false
+		_restoring.clear()
 
 
 ## |updatesearch|{"searching": [...], "games": {"battle-...": "[Gen 9] Random Battle", ...}}

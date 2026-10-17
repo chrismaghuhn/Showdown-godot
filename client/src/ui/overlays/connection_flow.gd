@@ -13,7 +13,11 @@ static func card_for(status: Dictionary, ui: Dictionary) -> StringName:
 	if ui.get("servers_open", false):
 		return &"servers"
 	var reconnecting: bool = status.get("reconnecting", false)
-	match int(status.get("state", 0)):
+	var state := int(status.get("state", 0))
+	# The socket is open but the server hasn't greeted us (|challstr|) yet: still connecting.
+	if state == Connection.State.CONNECTED and not status.get("session_up", true):
+		state = Connection.State.CONNECTING
+	match state:
 		Connection.State.CONNECTING, Connection.State.WAITING:
 			return &"" if reconnecting else &"connecting"
 		Connection.State.DISCONNECTED:
@@ -35,7 +39,10 @@ static func banner_for(status: Dictionary) -> Dictionary:
 		return {}
 	var attempts := _t("Attempt %d of %d.") % [int(status.get("attempt", 1)), int(status.get("max_attempts", 5))]
 	var keeps_running := _t("Your battles keep running on the server, and so do their timers.")
-	match int(status.get("state", 0)):
+	var state := int(status.get("state", 0))
+	if state == Connection.State.CONNECTED and not status.get("session_up", true):
+		state = Connection.State.CONNECTING
+	match state:
 		Connection.State.WAITING:
 			var seconds := maxi(ceili(float(status.get("retry_in", 0.0))), 1)
 			return {"tone": "warning",

@@ -199,6 +199,9 @@ func _on_connection_state_changed(state: int) -> void:
 		Connection.State.CONNECTED:
 			_status.text = tr("Connected")
 			_connect_button.text = tr("Disconnect")
+		Connection.State.WAITING:
+			_status.text = tr("Connection lost, reconnecting (attempt %d of %d)") % [Connection.attempt, ReconnectPolicy.MAX_ATTEMPTS]
+			_connect_button.text = tr("Cancel")
 
 
 func _on_command_submitted(text: String) -> void:
