@@ -36,5 +36,5 @@ static func from_dict(species_id: String, data: Dictionary) -> DexSpecies:
 
 ## File name of the sprite on Showdown's sprite server, e.g. "rotom-wash".
 func sprite_id() -> String:
-	var base := PSParser.to_id(base_species)
-	return base if forme.is_empty() else base + "-" + PSParser.to_id(forme)
+	var base := Dex.species_id(base_species)
+	return base if forme.is_empty() else base + "-" + Dex.species_id(forme)
