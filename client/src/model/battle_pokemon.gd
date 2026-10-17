@@ -93,12 +93,14 @@ func clear_boosts(direction: int) -> void:
 
 
 ## |replace|: this Pokémon was in battle disguised as `disguise` (Illusion). It takes over what
-## happened in the slot; the disguise goes back to how it was before it "switched in".
-func take_over_from(disguise: BattlePokemon) -> void:
-	hp = disguise.hp
-	max_hp = disguise.max_hp
-	status = disguise.status
-	fainted = disguise.fainted
+## happened in the slot (HP and status too unless `with_hp` is false); the disguise goes back to
+## how it was before it "switched in".
+func take_over_from(disguise: BattlePokemon, with_hp := true) -> void:
+	if with_hp:
+		hp = disguise.hp
+		max_hp = disguise.max_hp
+		status = disguise.status
+		fainted = disguise.fainted
 	boosts = disguise.boosts.duplicate()
 	volatiles = disguise.volatiles.duplicate()
 	if not disguise.tera_type.is_empty():

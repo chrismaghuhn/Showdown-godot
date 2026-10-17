@@ -104,8 +104,12 @@ func test_copy_swap_and_invert_boosts() -> void:
 	b.apply(PSParser.parse_line("battle-test", "|-swapboost|p1a: A|p2a: B|[from] move: Heart Swap"))
 	assert_eq(a.boosts, {"def": 2, "spe": -1, "spa": 3}, "Heart Swap swaps everything, A")
 	assert_eq(bliss.boosts, {"def": 2, "spe": -1, "atk": 1}, "Heart Swap swaps everything, B")
-	b.apply(PSParser.parse_line("battle-test", "|-invertboost|p2a: B|[from] move: Topsy-Turvy"))
-	assert_eq(bliss.boosts, {"def": -2, "spe": 1, "atk": -1}, "Topsy-Turvy inverts")
+	b.apply(PSParser.parse_line("battle-test", "|-boost|p1a: A|def|1"))
+	b.apply(PSParser.parse_line("battle-test", "|-swapboost|p1a: A|p2a: B|[from] move: Heart Swap"))
+	assert_eq(a.boosts, {"def": 2, "spe": -1, "atk": 1}, "a stat both have is swapped, A")
+	assert_eq(bliss.boosts, {"def": 3, "spe": -1, "spa": 3}, "a stat both have is swapped, B")
+	b.apply(PSParser.parse_line("battle-test", "|-invertboost|p1a: A|[from] move: Topsy-Turvy"))
+	assert_eq(a.boosts, {"def": -2, "spe": 1, "atk": -1}, "Topsy-Turvy inverts")
 
 
 func test_consumed_items_are_not_revealed_again() -> void:
@@ -161,11 +165,14 @@ func test_called_moves_are_not_revealed() -> void:
 		"|move|p1a: X|Stealth Rock|p2a: Y\n" +
 		"|move|p2a: Y|Stealth Rock|p1a: X|[from] ability: Magic Bounce\n" +
 		"|move|p1a: X|Metronome|p1a: X\n|move|p1a: X|Thunderbolt|p2a: Y|[from] move: Metronome\n" +
-		"|move|p2a: Y|Outrage|p1a: X\n|move|p2a: Y|Outrage|p1a: X|[from] lockedmove")
+		"|move|p2a: Y|Outrage|p1a: X\n|move|p2a: Y|Outrage|p1a: X|[from] lockedmove\n" +
+		"|move|p1a: X|Sleep Talk|p1a: X\n|move|p1a: X|Moonblast|p2a: Y|[from] move: Sleep Talk\n" +
+		"|move|p2a: Y|Pursuit|p1a: X|[from] move: Pursuit")
 	var x := b.side("p1").active_pokemon()
 	var y := b.side("p2").active_pokemon()
-	assert_eq(x.revealed_moves, PackedStringArray(["Stealth Rock", "Metronome"]), "Metronome's pick isn't X's move")
-	assert_eq(y.revealed_moves, PackedStringArray(["Outrage"]), "a bounced move isn't Y's move")
+	assert_eq(x.revealed_moves, PackedStringArray(["Stealth Rock", "Metronome", "Sleep Talk", "Moonblast"]),
+		"Metronome's pick isn't X's move, Sleep Talk's is")
+	assert_eq(y.revealed_moves, PackedStringArray(["Outrage", "Pursuit"]), "a bounced move isn't Y's move, Pursuit is")
 	assert_eq(y.ability, "Magic Bounce", "Magic Bounce is revealed")
 
 
@@ -195,3 +202,17 @@ func test_replace_moves_the_disguise_state_to_the_revealed_pokemon() -> void:
 	assert_eq(pikachu.hp, 50, "Pikachu's own HP is back")
 	assert_eq(pikachu.status, "par", "Pikachu's own status is back")
 	assert_true(pikachu.boosts.is_empty(), "Pikachu has no boosts")
+
+
+func test_replace_on_our_side_keeps_the_exact_hp() -> void:
+	var b := BattleState.new("battle-test")
+	b.my_side = "p1"
+	for line in ["|switch|p1a: Pikachu|Pikachu, L88, F|100/100", "|-boost|p1a: Pikachu|spa|1"]:
+		b.apply(PSParser.parse_line("battle-test", line))
+	var zoroark := b.side("p1").get_or_add("Zoroark")
+	zoroark.hp = 150
+	zoroark.max_hp = 250
+	b.apply(PSParser.parse_line("battle-test", "|replace|p1a: Zoroark|Zoroark, L84, M"))
+	assert_eq(zoroark.hp, 150, "own HP from the request stays")
+	assert_eq(zoroark.max_hp, 250, "own max HP stays")
+	assert_eq(zoroark.boosts, {"spa": 1}, "boosts still move over")

@@ -34,6 +34,8 @@ var winner := ""
 ## Abilities whose "[of]" is the other Pokémon involved (the attacker or the victim), not the
 ## holder: the message's own Pokémon holds them.
 const HELD_BY_TARGET := ["Water Absorb", "Volt Absorb", "Dry Skin", "Earth Eater", "Magician", "Pickpocket"]
+## Every stat with a stage.
+const BOOST_STATS := ["atk", "def", "spa", "spd", "spe", "accuracy", "evasion"]
 ## "-ability" sources that copy the "[of]" Pokémon's ability.
 const COPIED_ABILITY_SOURCES := ["ability: Trace", "ability: Receiver", "ability: Power of Alchemy"]
 
@@ -84,9 +86,10 @@ func apply(msg: PSMessage) -> void:
 			turn = msg.arg(0).to_int()
 		"move":
 			# Moves called by another move or ability (Metronome, Magic Bounce, Dancer …) aren't
-			# the user's own; a locked-in repeat (Outrage) is.
+			# the user's own; a locked-in repeat (Outrage), Sleep Talk's pick and Pursuit on a
+			# switch ("[from] move: Pursuit") are.
 			var from := str(msg.kwargs.get("from", ""))
-			if from.is_empty() or from == "lockedmove":
+			if from.is_empty() or from in ["lockedmove", "move: Sleep Talk", "move: " + msg.arg(1)]:
 				get_pokemon(msg.arg(0)).reveal_move(msg.arg(1))
 		"switch", "drag":
 			var ref := parse_ident(msg.arg(0))
@@ -104,7 +107,9 @@ func apply(msg: PSMessage) -> void:
 			var disguise := s.active_pokemon(ref["slot"])
 			mon.apply_details(msg.arg(1))
 			if disguise != null and disguise != mon:
-				mon.take_over_from(disguise)
+				# Our own HP comes exactly from |request|, not from the disguise.
+				mon.take_over_from(disguise, ref["side"] != my_side)
+			mon.apply_condition(msg.arg(2))
 			s.set_active(ref["slot"], mon)
 		"detailschange":
 			get_pokemon(msg.arg(0)).apply_details(msg.arg(1))
@@ -141,8 +146,7 @@ func apply(msg: PSMessage) -> void:
 			# Heart Swap swaps every stat; Guard / Power Swap list theirs ("def, spd").
 			var a := get_pokemon(msg.arg(0))
 			var other := get_pokemon(msg.arg(1))
-			var stats := msg.arg(2).split(", ", false) if not msg.arg(2).is_empty() \
-				else PackedStringArray(a.boosts.keys() + other.boosts.keys())
+			var stats := PackedStringArray(BOOST_STATS) if msg.arg(2).is_empty() else msg.arg(2).split(", ", false)
 			for stat in stats:
 				var mine: int = a.boosts.get(stat, 0)
 				var theirs: int = other.boosts.get(stat, 0)
@@ -221,7 +225,7 @@ func _reveal_from_kwargs(msg: PSMessage) -> void:
 	if source.begins_with("ability: ") and (msg.type == "-ability" or msg.type == "-enditem"):
 		return
 	var holder_ident := str(msg.kwargs.get("of", msg.arg(0)))
-	if source.substr(9) in HELD_BY_TARGET:
+	if source.begins_with("ability: ") and source.substr(9) in HELD_BY_TARGET:
 		holder_ident = msg.arg(0)
 	if not holder_ident.contains(": "):
 		return
