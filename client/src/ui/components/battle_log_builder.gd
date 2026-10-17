@@ -51,7 +51,7 @@ func push(msg: PSMessage, battle: BattleState) -> void:
 			_chip_on_move("Crit", "up")
 		"-damage", "-heal":
 			_on_hp_change(msg, battle)
-		"-sethp", "detailschange":
+		"-sethp":
 			# Pain Split etc. set HP without a damage row; later chips are relative to it.
 			_remember_hp(msg.arg(0), battle)
 		"-boost", "-unboost":

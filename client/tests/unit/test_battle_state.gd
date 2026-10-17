@@ -55,6 +55,34 @@ func test_weather_field_and_side_conditions() -> void:
 	assert_true(b.field_conditions.is_empty(), "field cleared")
 
 
+func test_effects_before_turn_one_or_after_upkeep_count_from_the_next_turn() -> void:
+	var b := _battle("|switch|p1a: Rilla|Rillaboom|100/100\n" +
+		"|-fieldstart|move: Grassy Terrain|[from] ability: Grassy Surge|[of] p1a: Rilla\n" +
+		"|-weather|SunnyDay|[from] ability: Drought|[of] p1a: Rilla")
+	assert_eq(b.weather_turns_left(), 5, "never more than the duration before turn 1")
+	b.apply(PSParser.parse_line("battle-test", "|turn|1"))
+	assert_eq(b.turns_left(int(b.field_turns["Grassy Terrain"])), 5, "lead terrain at turn 1")
+	assert_eq(b.weather_turns_left(), 5, "lead weather at turn 1")
+	b.apply(PSParser.parse_line("battle-test", "|upkeep|"))
+	b.apply(PSParser.parse_line("battle-test", "|turn|2"))
+	assert_eq(b.turns_left(int(b.field_turns["Grassy Terrain"])), 4, "lead terrain at turn 2")
+
+	b = _battle("|turn|3\n|-fieldstart|move: Psychic Terrain\n|-sidestart|p1: Ash|Reflect\n|upkeep|\n" +
+		"|-fieldstart|move: Electric Terrain|[from] ability: Electric Surge|[of] p2a: Pinchurchin\n" +
+		"|-sidestart|p2: Gary|move: Light Screen\n|-weather|RainDance|[from] ability: Drizzle|[of] p2a: Pelipper\n|turn|4")
+	assert_eq(b.weather_turns_left(), 5, "weather started after upkeep")
+	assert_eq(b.turns_left(int(b.field_turns["Electric Terrain"])), 5, "terrain started after upkeep")
+	assert_eq(b.turns_left(int(b.side("p2").conditions["Light Screen"]["turn"])), 5, "screen started after upkeep")
+	assert_eq(b.turns_left(int(b.side("p1").conditions["Reflect"]["turn"])), 4, "screen started during the turn")
+
+
+func test_extreme_weather_has_no_countdown() -> void:
+	var b := _battle("|-weather|DesolateLand|[from] ability: Desolate Land|[of] p1a: Groudon\n|turn|1")
+	assert_eq(b.weather_turns_left(), -1, "Desolate Land")
+	b.apply(PSParser.parse_line("battle-test", "|-weather|RainDance"))
+	assert_eq(b.weather_turns_left(), 5, "normal weather")
+
+
 func test_win() -> void:
 	var b := _battle("|turn|12\n|win|Ash")
 	assert_eq(b.turn, 12, "turn")
@@ -76,27 +104,3 @@ func test_request_sets_own_side() -> void:
 	assert_eq(chomp.max_hp, 301, "max hp")
 	assert_eq(chomp.moves, PackedStringArray(["earthquake", "outrage"]), "moves")
 
-
-func test_effects_before_turn_one_or_after_upkeep_count_from_the_next_turn() -> void:
-	var b := _battle("|switch|p1a: Rilla|Rillaboom|100/100\n" +
-		"|-fieldstart|move: Grassy Terrain|[from] ability: Grassy Surge|[of] p1a: Rilla\n" +
-		"|-weather|SunnyDay|[from] ability: Drought|[of] p1a: Rilla\n|turn|1")
-	assert_eq(b.turns_left(int(b.field_turns["Grassy Terrain"])), 5, "lead terrain at turn 1")
-	assert_eq(b.weather_turns_left(), 5, "lead weather at turn 1")
-	b.apply(PSParser.parse_line("battle-test", "|upkeep|"))
-	b.apply(PSParser.parse_line("battle-test", "|turn|2"))
-	assert_eq(b.turns_left(int(b.field_turns["Grassy Terrain"])), 4, "lead terrain at turn 2")
-
-	b = _battle("|turn|3\n|-fieldstart|move: Psychic Terrain\n|-sidestart|p1: Ash|Reflect\n|upkeep|\n" +
-		"|-fieldstart|move: Electric Terrain|[from] ability: Electric Surge|[of] p2a: Pinchurchin\n" +
-		"|-sidestart|p2: Gary|move: Light Screen\n|turn|4")
-	assert_eq(b.turns_left(int(b.field_turns["Electric Terrain"])), 5, "terrain started after upkeep")
-	assert_eq(b.turns_left(int(b.side("p2").conditions["Light Screen"]["turn"])), 5, "screen started after upkeep")
-	assert_eq(b.turns_left(int(b.side("p1").conditions["Reflect"]["turn"])), 4, "screen started during the turn")
-
-
-func test_extreme_weather_has_no_countdown() -> void:
-	var b := _battle("|-weather|DesolateLand|[from] ability: Desolate Land|[of] p1a: Groudon\n|turn|1")
-	assert_eq(b.weather_turns_left(), -1, "Desolate Land")
-	b.apply(PSParser.parse_line("battle-test", "|-weather|RainDance"))
-	assert_eq(b.weather_turns_left(), 5, "normal weather")

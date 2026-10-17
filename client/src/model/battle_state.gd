@@ -193,7 +193,7 @@ func _apply_timer(text: String) -> void:
 ## Turns left for a 5-turn effect that started in `start_turn` (estimate: 5 turns, items
 ## like Light Clay or Damp Rock extend it to 8 and are not detected).
 func turns_left(start_turn: int, duration := 5) -> int:
-	return maxi(duration - (turn - start_turn), 0)
+	return clampi(duration - (turn - start_turn), 0, duration)
 
 
 ## Applies a parsed |request| JSON. Our own side gets exact HP and move lists from it.
