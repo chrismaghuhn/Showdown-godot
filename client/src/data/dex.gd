@@ -29,10 +29,21 @@ static func from_sources(pokedex: Dictionary, movedex: Dictionary, itemdex: Dict
 		# Cosmetic formes (Vivillon patterns, Minior colours …) only carry their name and
 		# forme; types, stats and abilities come from the base species.
 		if entry.get("isCosmeticForme", false):
-			var base: Variant = pokedex.get(PSParser.to_id(str(entry.get("baseSpecies", ""))))
+			var base: Variant = pokedex.get(species_id(str(entry.get("baseSpecies", ""))))
 			if base is Dictionary:
-				entry = (base as Dictionary).merged(entry, true)
+				entry = _cosmetic_entry(base, entry)
 		dex.species[id] = DexSpecies.from_dict(id, entry)
+	# Others (Unown letters, Furfrou trims, Flabébé colours …) are only listed by their base.
+	for id: String in pokedex:
+		var base: Dictionary = pokedex[id]
+		for forme_name: Variant in base.get("cosmeticFormes", []):
+			var forme_id := species_id(str(forme_name))
+			if not dex.species.has(forme_id):
+				var base_name := str(base.get("name", id))
+				dex.species[forme_id] = DexSpecies.from_dict(forme_id, _cosmetic_entry(base, {
+					"name": str(forme_name), "baseSpecies": base_name, "isCosmeticForme": true,
+					"forme": str(forme_name).trim_prefix(base_name + "-"),
+				}))
 	for id: String in movedex:
 		dex.moves[id] = DexMove.from_dict(id, movedex[id])
 	for id: String in itemdex:
@@ -43,8 +54,23 @@ static func from_sources(pokedex: Dictionary, movedex: Dictionary, itemdex: Dict
 	return dex
 
 
+## Species id as in Showdown's pokedex: "Flabébé-Blue" -> "flabebeblue" (toID alone would drop
+## the "é"; usernames keep plain toID).
+static func species_id(species_name: String) -> String:
+	return PSParser.to_id(species_name.replace("é", "e"))
+
+
+## A cosmetic forme's entry: the base species' data under the forme's own keys, without the
+## base's list of formes.
+static func _cosmetic_entry(base: Dictionary, forme: Dictionary) -> Dictionary:
+	var entry := base.merged(forme, true)
+	for key in ["otherFormes", "cosmeticFormes", "formeOrder", "baseForme"]:
+		entry.erase(key)
+	return entry
+
+
 func get_species(name_or_id: String) -> DexSpecies:
-	return species.get(PSParser.to_id(name_or_id))
+	return species.get(species_id(name_or_id))
 
 
 func get_move(name_or_id: String) -> DexMove:
