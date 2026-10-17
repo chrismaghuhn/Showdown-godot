@@ -85,3 +85,15 @@ func test_timer_messages() -> void:
 	assert_eq(b.timer_total_seconds, 280, "total seconds")
 	b.apply(PSParser.parse_line("battle-test", "|inactiveoff|Battle timer is now OFF."))
 	assert_true(not b.timer_on, "timer off")
+
+
+func test_every_time_left_message_is_a_timer_update() -> void:
+	var b := _battle("|inactive|Time left: 140 sec this turn | 280 sec total")
+	assert_eq(b.timer_updates, 1, "first update")
+	# The server often repeats the same values; the countdown must still resync to them.
+	b.apply(PSParser.parse_line("battle-test", "|inactive|Time left: 140 sec this turn | 280 sec total"))
+	assert_eq(b.timer_updates, 2, "repeated values")
+	b.apply(PSParser.parse_line("battle-test", "|inactive|Ash has 60 seconds left."))
+	assert_eq(b.timer_updates, 2, "other |inactive| texts don't touch our clock")
+	b.apply(PSParser.parse_line("battle-test", "|inactiveoff|Battle timer is now OFF."))
+	assert_eq(b.timer_updates, 3, "timer off")

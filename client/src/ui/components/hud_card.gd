@@ -75,8 +75,7 @@ func show_pokemon(mon: BattlePokemon, side: BattleSide, battle: BattleState, dex
 	_sub.text = mon.species if _own else "Lv %d" % mon.level
 	_sub.visible = not _own or mon.species != mon.name
 
-	for child in _types.get_children():
-		child.queue_free()
+	_clear(_types)
 	if not mon.tera_type.is_empty():
 		var tera := TypeBadge.new(mon.tera_type)
 		tera.text = tr("Tera %s") % mon.tera_type
@@ -89,25 +88,23 @@ func show_pokemon(mon: BattlePokemon, side: BattleSide, battle: BattleState, dex
 
 	# Animate HP changes of the same Pokémon; jump when a different one comes in.
 	if mon.fainted:
-		_bar.percent = 0.0
+		_bar.set_instant(0.0)
 	elif key == _shown_key:
 		_bar.animate_to(mon.hp_percent())
 	else:
-		_bar.percent = mon.hp_percent()
+		_bar.set_instant(mon.hp_percent())
 	_shown_key = key
 	_on_bar_changed(_bar.percent)
 
 	_status.visible = not mon.status.is_empty()
 	if _status.visible:
 		_status.status = mon.status
-	for child in _boosts.get_children():
-		child.queue_free()
+	_clear(_boosts)
 	for stat: String in mon.boosts:
 		if int(mon.boosts[stat]) != 0:
 			_boosts.add_child(BoostChip.new(stat, int(mon.boosts[stat])))
 
-	for child in _conditions.get_children():
-		child.queue_free()
+	_clear(_conditions)
 	for volatile: String in mon.volatiles:
 		var chip := Label.new()
 		chip.text = volatile
@@ -125,6 +122,13 @@ func show_pokemon(mon: BattlePokemon, side: BattleSide, battle: BattleState, dex
 	_separator.visible = has_conditions
 	_conditions.visible = has_conditions
 	tooltip_text = "%s (%s)" % [mon.name, mon.species]
+
+
+## Removes the old chips right away, so child counts only see the new ones.
+static func _clear(container: Container) -> void:
+	for child in container.get_children():
+		container.remove_child(child)
+		child.queue_free()
 
 
 func _on_bar_changed(value: float) -> void:

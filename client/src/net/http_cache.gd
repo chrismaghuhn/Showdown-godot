@@ -34,18 +34,24 @@ func read_cached(url: String) -> PackedByteArray:
 ## (e.g. 404, or offline with nothing cached). Must be awaited.
 func fetch(url: String, max_age_sec: int) -> PackedByteArray:
 	var path := path_for(url)
-	var meta := _read_meta(path)
-	var cached := FileAccess.file_exists(path)
-	var now := int(Time.get_unix_time_from_system())
-	if cached and now - int(meta.get("fetched_at", 0)) < max_age_sec:
-		return read_cached(url)
-
-	if _in_flight.has(url):
-		# Another caller is already downloading this URL: wait and share its result.
-		while _in_flight.has(url):
-			await _request_finished
-		return read_cached(url)
-	while _active >= MAX_CONCURRENT:
+	var meta := {}
+	var cached := false
+	var now := 0
+	while true:
+		meta = _read_meta(path)
+		cached = FileAccess.file_exists(path)
+		now = int(Time.get_unix_time_from_system())
+		if cached and now - int(meta.get("fetched_at", 0)) < max_age_sec:
+			return read_cached(url)
+		if _in_flight.has(url):
+			# Another caller is already downloading this URL: wait and share its result.
+			while _in_flight.has(url):
+				await _request_finished
+			return read_cached(url)
+		if _active < MAX_CONCURRENT:
+			break
+		# All slots are busy. Check again after waiting: meanwhile another caller may have
+		# started or finished downloading this URL.
 		await _request_finished
 	_active += 1
 	_in_flight[url] = true
@@ -56,24 +62,10 @@ func fetch(url: String, max_age_sec: int) -> PackedByteArray:
 	if cached and meta.has("last_modified"):
 		headers.append("If-Modified-Since: " + str(meta["last_modified"]))
 
-	var http := HTTPRequest.new()
-	http.timeout = 30.0
-	add_child(http)
-	var body := PackedByteArray()
-	var code := 0
-	var response_headers := PackedStringArray()
-	if http.request(url, headers) == OK:
-		var response: Array = []
-		http.request_completed.connect(func(result: int, response_code: int, h: PackedStringArray, b: PackedByteArray) -> void:
-			response.append_array([result, response_code, h, b]), CONNECT_ONE_SHOT)
-		while response.is_empty():
-			await get_tree().process_frame
-			progress.emit(url, http.get_downloaded_bytes(), http.get_body_size())
-		if response[0] == HTTPRequest.RESULT_SUCCESS:
-			code = response[1]
-			response_headers = response[2]
-			body = response[3]
-	http.queue_free()
+	var response: Dictionary = await _request(url, headers)
+	var code: int = response.get("code", 0)
+	var response_headers: PackedStringArray = response.get("headers", PackedStringArray())
+	var body: PackedByteArray = response.get("body", PackedByteArray())
 	_active -= 1
 	_in_flight.erase(url)
 
@@ -103,6 +95,27 @@ func fetch(url: String, max_age_sec: int) -> PackedByteArray:
 		result = read_cached(url)
 	_request_finished.emit(url)
 	return result
+
+
+## Sends one GET request and waits for the answer. Returns {code: int, headers:
+## PackedStringArray, body: PackedByteArray}, code 0 if the request failed (missing keys
+## count as empty). Tests override this to answer without a network.
+func _request(url: String, headers: PackedStringArray) -> Dictionary:
+	var http := HTTPRequest.new()
+	http.timeout = 30.0
+	add_child(http)
+	var answer := {"code": 0, "headers": PackedStringArray(), "body": PackedByteArray()}
+	if http.request(url, headers) == OK:
+		var response: Array = []
+		http.request_completed.connect(func(result: int, response_code: int, h: PackedStringArray, b: PackedByteArray) -> void:
+			response.append_array([result, response_code, h, b]), CONNECT_ONE_SHOT)
+		while response.is_empty():
+			await get_tree().process_frame
+			progress.emit(url, http.get_downloaded_bytes(), http.get_body_size())
+		if response[0] == HTTPRequest.RESULT_SUCCESS:
+			answer = {"code": response[1], "headers": response[2], "body": response[3]}
+	http.queue_free()
+	return answer
 
 
 ## Maps a URL to a readable cache path, e.g.

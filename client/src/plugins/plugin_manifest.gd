@@ -17,6 +17,23 @@ var dir := ""
 var error := ""
 
 
+## Loads the manifest of every plugin folder in `dirs`, in search order. The first loadable
+## copy of an id wins; later loadable copies are marked invalid as duplicates.
+static func load_all(dirs: PackedStringArray) -> Array[PluginManifest]:
+	var result: Array[PluginManifest] = []
+	var first_dir := {}
+	for base in dirs:
+		for sub in DirAccess.get_directories_at(base):
+			var m := load_from_dir(base.path_join(sub))
+			if m.is_valid():
+				if first_dir.has(m.id):
+					m.error = "duplicate id, already provided by %s" % first_dir[m.id]
+				else:
+					first_dir[m.id] = m.dir
+			result.append(m)
+	return result
+
+
 static func load_from_dir(plugin_dir: String) -> PluginManifest:
 	var m := PluginManifest.new()
 	m.dir = plugin_dir
@@ -30,16 +47,33 @@ static func load_from_dir(plugin_dir: String) -> PluginManifest:
 	m.id = str(data.get("id", ""))
 	m.name = str(data.get("name", m.id))
 	m.version = str(data.get("version", "0.0.0"))
-	m.api_version = int(data.get("api_version", 0))
-	m.entry = str(data.get("entry", "main.gd"))
 	m.description = str(data.get("description", ""))
-	m.permissions = PackedStringArray(data.get("permissions", []))
+	# int(null) or PackedStringArray("ui") would abort this function, so check types first.
+	var api_version: Variant = data.get("api_version", 0)
+	var entry: Variant = data.get("entry", "main.gd")
+	var permissions: Variant = data.get("permissions", [])
+	if not (api_version is float or api_version is int) or fmod(api_version, 1.0) != 0.0:
+		m.error = "\"api_version\" must be a whole number"
+		return m
+	if not entry is String:
+		m.error = "\"entry\" must be a string"
+		return m
+	if not permissions is Array or (permissions as Array).any(func(p: Variant) -> bool: return not p is String):
+		m.error = "\"permissions\" must be a list of strings"
+		return m
+	m.api_version = int(api_version)
+	m.entry = entry
+	m.permissions = PackedStringArray(permissions)
 
 	var id_pattern := RegEx.create_from_string("^[a-z0-9][a-z0-9-]*$")
 	if id_pattern.search(m.id) == null:
 		m.error = "invalid id '%s' (use lowercase letters, digits and dashes)" % m.id
+	elif m.id != plugin_dir.get_file():
+		m.error = "id '%s' does not match its folder name '%s'" % [m.id, plugin_dir.get_file()]
 	elif m.api_version != PluginAPI.VERSION:
 		m.error = "needs plugin API v%d, client provides v%d" % [m.api_version, PluginAPI.VERSION]
+	elif not is_entry_inside(m.dir, m.entry):
+		m.error = "entry '%s' must be a .gd file inside the plugin folder" % m.entry
 	elif not FileAccess.file_exists(m.dir.path_join(m.entry)):
 		m.error = "entry script '%s' not found" % m.entry
 	else:
@@ -47,6 +81,17 @@ static func load_from_dir(plugin_dir: String) -> PluginManifest:
 			if not p in KNOWN_PERMISSIONS:
 				m.error = "unknown permission '%s'" % p
 	return m
+
+
+## True if `entry` is a relative path to a .gd file that stays inside `plugin_dir`.
+## A lexical check (defence in depth), not a sandbox: plugin code still runs unrestricted (#29).
+static func is_entry_inside(plugin_dir: String, entry: String) -> bool:
+	if entry.get_extension() != "gd" or entry.begins_with("/") or entry.contains(":") \
+			or entry.contains("\\") or ".." in entry.split("/"):
+		return false
+	# Simplify once and join onto that: simplify_path() turns "C:\\a" into "C:/a".
+	var folder := plugin_dir.simplify_path()
+	return folder.path_join(entry).simplify_path().begins_with(folder.trim_suffix("/") + "/")
 
 
 func is_valid() -> bool:

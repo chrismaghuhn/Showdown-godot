@@ -6,7 +6,8 @@ extends RefCounted
 const STAT_ORDER := ["atk", "def", "spa", "spd", "spe"]
 
 
-static func move_tooltip(move_name: String, dex: Dex, pp_text: String, hotkey: String, target: DexSpecies) -> Control:
+## target: the defending Pokémon (effectiveness uses its Tera type once it terastallized).
+static func move_tooltip(move_name: String, dex: Dex, pp_text: String, hotkey: String, target: BattlePokemon) -> Control:
 	var root := _root()
 	var data: DexMove = dex.get_move(move_name) if dex != null else null
 	var head := HBoxContainer.new()
@@ -32,8 +33,10 @@ static func move_tooltip(move_name: String, dex: Dex, pp_text: String, hotkey: S
 	_stat_cell(stats, _t("Accuracy"), _t("Always hits") if data.accuracy == DexMove.ALWAYS_HITS else "%d%%" % data.accuracy)
 	_stat_cell(stats, "PP", pp_text if not pp_text.is_empty() else str(data.pp))
 
-	if target != null and data.category != "Status":
-		var multiplier := dex.effectiveness(data.type, target.types)
+	var target_species: DexSpecies = dex.get_species(target.species) if target != null else null
+	var target_types := defending_types(target, target_species) if target != null else PackedStringArray()
+	if not target_types.is_empty() and data.category != "Status":
+		var multiplier := dex.effectiveness(data.type, target_types)
 		var row := HBoxContainer.new()
 		root.add_child(row)
 		var verdict := _t("Neutral vs %s")
@@ -48,7 +51,7 @@ static func move_tooltip(move_name: String, dex: Dex, pp_text: String, hotkey: S
 			verdict = _t("Not very effective vs %s")
 			kind = &"BoostDownChip"
 		row.add_child(_label("×" + String.num(multiplier), kind))
-		row.add_child(_label(verdict % target.name, &"SecondaryLabel", true))
+		row.add_child(_label(verdict % (target_species.name if target_species != null else target.species), &"SecondaryLabel", true))
 	return root
 
 
@@ -63,9 +66,14 @@ static func pokemon_tooltip(mon: BattlePokemon, own: bool, dex: Dex, my_active: 
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(spacer)
-	if species != null:
+	# Terastallized: the Tera badge in place of the types; Stellar keeps them, so it goes next to them.
+	if species != null and (mon.tera_type.is_empty() or mon.tera_type == "Stellar"):
 		for type_name in species.types:
 			head.add_child(TypeBadge.new(type_name))
+	if not mon.tera_type.is_empty():
+		var tera := TypeBadge.new(mon.tera_type)
+		tera.text = _t("Tera %s") % mon.tera_type
+		head.add_child(tera)
 
 	var hp_row := HBoxContainer.new()
 	root.add_child(hp_row)
@@ -110,6 +118,14 @@ static func pokemon_tooltip(mon: BattlePokemon, own: bool, dex: Dex, my_active: 
 		if not own and my_active != null and my_active.stats.has("spe"):
 			root.add_child(_label(_speed_verdict(mon, species, my_active), &"SecondaryLabel", true))
 	return root
+
+
+## The types `mon` defends with: its Tera type once terastallized, except Stellar, which keeps
+## the original types. Empty when neither is known (species not in the Dex).
+static func defending_types(mon: BattlePokemon, species: DexSpecies) -> PackedStringArray:
+	if not mon.tera_type.is_empty() and mon.tera_type != "Stellar":
+		return PackedStringArray([mon.tera_type])
+	return species.types if species != null else PackedStringArray()
 
 
 static func _speed_verdict(opponent: BattlePokemon, species: DexSpecies, mine: BattlePokemon) -> String:

@@ -5,6 +5,9 @@ extends RefCounted
 ## No network, UI or autoload dependencies: feed it PSMessages (live, replay or test)
 ## and read the state. The server does all game mechanics; this only mirrors them.
 
+## Weathers without a duration (they end when the Pokémon that set them leaves).
+const ENDLESS_WEATHERS := ["DesolateLand", "PrimordialSea", "DeltaStream"]
+
 var room_id := ""
 var format := ""
 var gen := 0
@@ -20,10 +23,15 @@ var weather_turn := 0
 var field_conditions := PackedStringArray()
 ## Field condition -> turn it started.
 var field_turns := {}
+## Turn whose end-of-turn upkeep (|upkeep|) already ran.
+var _upkeep_turn := -1
 ## Battle timer (from |inactive|): seconds left this turn and in total; -1 = unknown.
 var timer_on := false
 var timer_turn_seconds := -1
 var timer_total_seconds := -1
+## Counts the timer updates ("Time left" and |inactiveoff|), so a local countdown can resync on
+## each one even when the server repeats the same values.
+var timer_updates := 0
 ## Latest |request| payload (what we may choose this turn).
 var request := {}
 var ended := false
@@ -34,6 +42,14 @@ var awaiting_choice := false
 ## The room went away on the server before a result arrived (ended, but neither won nor tied).
 var expired := false
 var winner := ""
+
+## Abilities whose "[of]" is the other Pokémon involved (the attacker or the victim), not the
+## holder: the message's own Pokémon holds them.
+const HELD_BY_TARGET := ["Water Absorb", "Volt Absorb", "Dry Skin", "Earth Eater", "Magician", "Pickpocket"]
+## Every stat with a stage.
+const BOOST_STATS := ["atk", "def", "spa", "spd", "spe", "accuracy", "evasion"]
+## "-ability" sources that copy the "[of]" Pokémon's ability.
+const COPIED_ABILITY_SOURCES := ["ability: Trace", "ability: Receiver", "ability: Power of Alchemy"]
 
 
 func _init(id := "") -> void:
@@ -81,16 +97,37 @@ func apply(msg: PSMessage) -> void:
 		"turn":
 			turn = msg.arg(0).to_int()
 		"move":
-			get_pokemon(msg.arg(0)).reveal_move(msg.arg(1))
-		"switch", "drag", "replace":
+			# Moves called by another move or ability (Metronome, Magic Bounce, Dancer …) aren't
+			# the user's own; a locked-in repeat (Outrage), Sleep Talk's pick and Pursuit on a
+			# switch ("[from] move: Pursuit") are.
+			var from := str(msg.kwargs.get("from", ""))
+			if from.is_empty() or from in ["lockedmove", "move: Sleep Talk", "move: " + msg.arg(1)]:
+				get_pokemon(msg.arg(0)).reveal_move(msg.arg(1))
+		"switch", "drag":
 			var ref := parse_ident(msg.arg(0))
 			var s := side(ref["side"])
 			var mon := s.get_or_add(ref["name"])
 			mon.apply_details(msg.arg(1))
+			mon.before_switch = {"hp": mon.hp, "max_hp": mon.max_hp, "status": mon.status, "fainted": mon.fainted}
 			mon.apply_condition(msg.arg(2))
 			s.set_active(ref["slot"], mon)
-		"detailschange", "-formechange":
+		"replace":
+			# Illusion ended: the Pokémon in the slot was this one all along (no HP is sent).
+			var ref := parse_ident(msg.arg(0))
+			var s := side(ref["side"])
+			var mon := s.get_or_add(ref["name"])
+			var disguise := s.active_pokemon(ref["slot"])
+			mon.apply_details(msg.arg(1))
+			if disguise != null and disguise != mon:
+				# Our own HP comes exactly from |request|, not from the disguise.
+				mon.take_over_from(disguise, ref["side"] != my_side)
+			mon.apply_condition(msg.arg(2))
+			s.set_active(ref["slot"], mon)
+		"detailschange":
 			get_pokemon(msg.arg(0)).apply_details(msg.arg(1))
+		"-formechange":
+			# Only the species changes; level, gender and shiny stay.
+			get_pokemon(msg.arg(0)).species = msg.arg(1).get_slice(", ", 0)
 		"-damage", "-heal", "-sethp":
 			get_pokemon(msg.arg(0)).apply_condition(msg.arg(1))
 		"faint":
@@ -108,8 +145,29 @@ func apply(msg: PSMessage) -> void:
 			get_pokemon(msg.arg(0)).boost(msg.arg(1), -msg.arg(2).to_int())
 		"-setboost":
 			get_pokemon(msg.arg(0)).boosts[msg.arg(1)] = msg.arg(2).to_int()
-		"-clearboost", "-clearnegativeboost":
+		"-clearboost":
 			get_pokemon(msg.arg(0)).boosts.clear()
+		"-clearnegativeboost":
+			get_pokemon(msg.arg(0)).clear_boosts(-1)
+		"-clearpositiveboost":
+			get_pokemon(msg.arg(0)).clear_boosts(1)
+		"-copyboost":
+			# Psych Up, Costar: the first Pokémon copies the second one's stages.
+			get_pokemon(msg.arg(0)).boosts = get_pokemon(msg.arg(1)).boosts.duplicate()
+		"-swapboost":
+			# Heart Swap swaps every stat; Guard / Power Swap list theirs ("def, spd").
+			var a := get_pokemon(msg.arg(0))
+			var other := get_pokemon(msg.arg(1))
+			var stats := PackedStringArray(BOOST_STATS) if msg.arg(2).is_empty() else msg.arg(2).split(", ", false)
+			for stat in stats:
+				var mine: int = a.boosts.get(stat, 0)
+				var theirs: int = other.boosts.get(stat, 0)
+				a.set_boost(stat, theirs)
+				other.set_boost(stat, mine)
+		"-invertboost":
+			var mon := get_pokemon(msg.arg(0))
+			for stat: String in mon.boosts.keys():
+				mon.set_boost(stat, -int(mon.boosts[stat]))
 		"-clearallboost":
 			for s: BattleSide in sides.values():
 				for mon: BattlePokemon in s.pokemon.values():
@@ -117,28 +175,40 @@ func apply(msg: PSMessage) -> void:
 		"-weather":
 			var new_weather := "" if msg.arg(0) == "none" else msg.arg(0)
 			if new_weather != weather and not msg.kwargs.has("upkeep"):
-				weather_turn = turn
+				weather_turn = _effect_start_turn()
 			weather = new_weather
 		"-fieldstart":
 			var effect := effect_name(msg.arg(0))
 			if not effect in field_conditions:
 				field_conditions.append(effect)
-			field_turns[effect] = turn
+			field_turns[effect] = _effect_start_turn()
 		"-fieldend":
 			var index := field_conditions.find(effect_name(msg.arg(0)))
 			if index != -1:
 				field_conditions.remove_at(index)
 			field_turns.erase(effect_name(msg.arg(0)))
+		"upkeep":
+			_upkeep_turn = turn
 		"-sidestart":
-			side(msg.arg(0).substr(0, 2)).add_condition(effect_name(msg.arg(1)), turn)
+			side(msg.arg(0).substr(0, 2)).add_condition(effect_name(msg.arg(1)), _effect_start_turn())
 		"-sideend":
 			side(msg.arg(0).substr(0, 2)).conditions.erase(effect_name(msg.arg(1)))
 		"-item":
-			get_pokemon(msg.arg(0)).item = msg.arg(1)
+			var mon := get_pokemon(msg.arg(0))
+			mon.item = msg.arg(1)
+			mon.prev_item = ""
 		"-enditem":
-			get_pokemon(msg.arg(0)).item = ""
+			var mon := get_pokemon(msg.arg(0))
+			mon.item = ""
+			mon.prev_item = msg.arg(1)
+			# Bug Bite / Pluck: the eater gets the berry's effect, but never held it.
+			if str(msg.kwargs.get("from", "")) == "stealeat" and str(msg.kwargs.get("of", "")).contains(": "):
+				get_pokemon(msg.kwargs["of"]).prev_item = msg.arg(1)
 		"-ability":
 			get_pokemon(msg.arg(0)).ability = msg.arg(1)
+			# Trace, Receiver, Power of Alchemy: the copied ability is also "[of]"'s own.
+			if str(msg.kwargs.get("from", "")) in COPIED_ABILITY_SOURCES and str(msg.kwargs.get("of", "")).contains(": "):
+				get_pokemon(msg.kwargs["of"]).ability = msg.arg(1)
 		"-terastallize":
 			get_pokemon(msg.arg(0)).tera_type = msg.arg(1)
 		"-start":
@@ -151,6 +221,7 @@ func apply(msg: PSMessage) -> void:
 			timer_on = false
 			timer_turn_seconds = -1
 			timer_total_seconds = -1
+			timer_updates += 1
 		"win":
 			ended = true
 			awaiting_choice = false
@@ -167,12 +238,19 @@ func _reveal_from_kwargs(msg: PSMessage) -> void:
 	var source := str(msg.kwargs.get("from", ""))
 	if not (source.begins_with("item: ") or source.begins_with("ability: ")):
 		return
+	# -ability names the new ability itself; Pickpocket's -enditem names the thief's victim.
+	if source.begins_with("ability: ") and (msg.type == "-ability" or msg.type == "-enditem"):
+		return
 	var holder_ident := str(msg.kwargs.get("of", msg.arg(0)))
+	if source.begins_with("ability: ") and source.substr(9) in HELD_BY_TARGET:
+		holder_ident = msg.arg(0)
 	if not holder_ident.contains(": "):
 		return
 	var holder := get_pokemon(holder_ident)
 	if source.begins_with("item: "):
-		holder.item = source.substr(6)
+		# A used-up item announces itself first (-enditem), then its effect.
+		if source.substr(6) != holder.prev_item:
+			holder.item = source.substr(6)
 	else:
 		holder.ability = source.substr(9)
 
@@ -185,6 +263,7 @@ func _apply_timer(text: String) -> void:
 		timer_on = true
 		timer_turn_seconds = found.get_string(1).to_int()
 		timer_total_seconds = found.get_string(2).to_int()
+		timer_updates += 1
 	elif text.contains("timer is ON") or text.contains("timer is now ON"):
 		timer_on = true
 
@@ -192,7 +271,7 @@ func _apply_timer(text: String) -> void:
 ## Turns left for a 5-turn effect that started in `start_turn` (estimate: 5 turns, items
 ## like Light Clay or Damp Rock extend it to 8 and are not detected).
 func turns_left(start_turn: int, duration := 5) -> int:
-	return maxi(duration - (turn - start_turn), 0)
+	return clampi(duration - (turn - start_turn), 0, duration)
 
 
 ## Applies a parsed |request| JSON. Our own side gets exact HP and move lists from it.
@@ -245,6 +324,17 @@ func claim_side_by_name(username: String) -> void:
 		if not s.player_name.is_empty() and PSParser.to_id(s.player_name) == me:
 			my_side = side_id
 			return
+
+
+## Turns left for the current weather; -1 for weathers that last until their setter leaves.
+func weather_turns_left() -> int:
+	return -1 if weather in ENDLESS_WEATHERS else turns_left(weather_turn)
+
+
+## The turn a new effect counts from: its first countdown is this turn's upkeep, or the next
+## one's if it starts before turn 1 (lead abilities) or after this turn's upkeep (replacements).
+func _effect_start_turn() -> int:
+	return turn + 1 if turn == 0 or _upkeep_turn == turn else turn
 
 
 ## "move: Stealth Rock" -> "Stealth Rock"
