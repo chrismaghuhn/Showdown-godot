@@ -20,6 +20,12 @@ var _builder := BattleLogBuilder.new()
 var _request := {}
 var _waiting := false
 var _chosen := ""
+## The choice taken back with /undo, until the server either accepts or refuses that.
+var _undone := ""
+## The server refused to undo the choice ("Can't undo"): it stands, Cancel is hidden.
+var _cant_undo := false
+## Why the server rejected the last choice ("" = it didn't).
+var _choice_error := ""
 var _tera := false
 var _refresh_queued := false
 var _timer_turn := -1
@@ -428,9 +434,13 @@ func _on_battle_started(started: BattleState) -> void:
 	_builder = BattleLogBuilder.new()
 	_log.clear()
 	_chat.clear()
-	_request = {}
-	_waiting = false
+	# A screen opened mid-decision shows the pending request (or waits if it was answered).
+	_request = started.request
+	_waiting = not _request.is_empty() and (_request.get("wait", false) or not started.awaiting_choice)
 	_chosen = ""
+	_undone = ""
+	_cant_undo = false
+	_choice_error = ""
 	_tera = false
 	_tera_button.set_pressed_no_signal(false)
 	_queue_refresh()
@@ -442,6 +452,9 @@ func _on_battle_updated(updated: BattleState, msg: PSMessage) -> void:
 	_builder.push(msg, battle)
 	if msg.type == "turn" or msg.type == "upkeep":
 		_waiting = false
+		_choice_error = ""
+	elif msg.type == "error":
+		_on_choice_error(msg.arg(0))
 	elif msg.type == "sentchoice":
 		# Rejoined after the choice went out: show it as chosen, not the buttons again.
 		_chosen = msg.arg(0)
@@ -454,11 +467,43 @@ func _on_battle_request(requested: BattleState, request: Dictionary) -> void:
 		return
 	_request = request
 	_waiting = request.get("wait", false)
+	# Any request answers the last choice; a "wait" one leaves nothing to cancel.
+	_chosen = ""
+	_undone = ""
+	_cant_undo = false
+	# An [Unavailable choice] error comes with an updated request; keep showing why.
+	if not request.get("update", false):
+		_choice_error = ""
 	if not _waiting:
-		_chosen = ""
 		_tera = false
 		_tera_button.set_pressed_no_signal(false)
 	_queue_refresh()
+
+
+## A choice |error| (see BattleState.choice_error()): pick again, or the first choice stands
+## ("Can't undo", too late), or an updated request follows ([Unavailable choice]).
+func _on_choice_error(text: String) -> void:
+	var asking: bool = not _request.is_empty() and not _request.get("wait", false)
+	match BattleState.choice_error(text):
+		"rejected":
+			if not asking:
+				return
+			_waiting = false
+			_chosen = ""
+		"stands":
+			if not _undone.is_empty():
+				_chosen = _undone
+			_waiting = _waiting or asking
+			_cant_undo = true
+		"unavailable":
+			pass
+		"ignore":
+			_undone = ""
+			return
+		_:
+			return
+	_undone = ""
+	_choice_error = text.substr(text.find("]") + 1).strip_edges()
 
 
 func _on_battle_ended(ended: BattleState, _winner: String) -> void:
@@ -495,7 +540,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		return
 	var key := event as InputEventKey
 	var number := key.keycode - KEY_1
-	if key.keycode == KEY_ESCAPE and _waiting:
+	if key.keycode == KEY_ESCAPE and _can_cancel():
 		_cancel_choice()
 	elif number >= 0 and number < 6 and key.shift_pressed:
 		if not _slot_buttons[number].disabled and _slot_buttons[number].visible:
@@ -528,18 +573,35 @@ func _send_choice(choice: String) -> void:
 	if battle == null:
 		return
 	Connection.choose(battle.room_id, choice, int(_request.get("rqid", -1)))
+	_on_choice_sent(choice)
+	_refresh()
+
+
+func _on_choice_sent(choice: String) -> void:
 	_chosen = choice
 	_waiting = true
-	_refresh()
+	_choice_error = ""
+
+
+## A sent choice can be taken back until a request answers it or the server refused an undo
+## (and not at all in formats without Cancel: "noCancel").
+func _can_cancel() -> bool:
+	return battle != null and not battle.ended and _waiting and not _chosen.is_empty() and not _cant_undo \
+		and not _request.get("noCancel", false)
 
 
 func _cancel_choice() -> void:
-	if battle == null or not _waiting:
+	if not _can_cancel():
 		return
 	Connection.undo_choice(battle.room_id)
+	_on_choice_undone()
+	_refresh()
+
+
+func _on_choice_undone() -> void:
+	_undone = _chosen
 	_waiting = false
 	_chosen = ""
-	_refresh()
 
 
 func _forfeit() -> void:
@@ -661,7 +723,9 @@ func _refresh_choices(mine: BattleSide, my_active: BattlePokemon, opp_active: Ba
 	else:
 		_choice_title.text = tr("What will %s do?") % (my_active.name if my_active != null else "?")
 		_choice_note.text = ""
-	_cancel_button.visible = _waiting and not battle.ended and not _chosen.is_empty()
+	if not _choice_error.is_empty() and not battle.ended:
+		_choice_note.text = _choice_error if _choice_note.text.is_empty() else "%s · %s" % [_choice_note.text, _choice_error]
+	_cancel_button.visible = _can_cancel()
 	_forfeit_button.disabled = battle.ended
 	var tera_type := str(active_req.get("canTerastallize", ""))
 	_tera_button.visible = not tera_type.is_empty() and not battle.ended

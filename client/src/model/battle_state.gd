@@ -385,6 +385,24 @@ func _effect_start_turn() -> int:
 	return turn + 1 if turn == 0 or _upkeep_turn == turn else turn
 
 
+## What a choice |error| means for the choice that was sent:
+## "rejected": refused, pick again (no new |request| comes);
+## "stands": an undo or a second pick came too late, the first choice still runs;
+## "unavailable": refused, an updated |request| follows ([Unavailable choice]);
+## "ignore": nothing to cancel (the choice was already answered); "" = not a choice error.
+static func choice_error(text: String) -> String:
+	if text.begins_with("[Unavailable choice]"):
+		return "unavailable"
+	if not text.begins_with("[Invalid choice]"):
+		return ""
+	if text.contains("There's nothing to cancel"):
+		return "ignore"
+	for stands in ["Can't undo", "Sorry, too late", "There's nothing to choose"]:
+		if text.contains(stands):
+			return "stands"
+	return "rejected"
+
+
 ## "move: Stealth Rock" -> "Stealth Rock"
 static func effect_name(effect: String) -> String:
 	var colon := effect.find(": ")
