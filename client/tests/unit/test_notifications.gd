@@ -91,12 +91,35 @@ func test_output_device_labels() -> void:
 func test_battle_found_after_long_search() -> void:
 	var toasts := _capture_toasts()
 	_feed('|updatesearch|{"searching":["gen9ou"],"games":null}')
-	_age_search(40000)
+	_wait(toasts, 40000)
 	_feed('|updatesearch|{"searching":[],"games":{"battle-gen9ou-501":"[Gen 9] OU"}}')
+	_wait(toasts, 500)
 	_feed(">battle-gen9ou-501\n|init|battle\n|title|Alice vs. Bob")
 	assert_eq(_titles(toasts), ["Battle found"], "40 s search, then matched")
 	_release(toasts)
 	Rooms.battles.erase("battle-gen9ou-501")
+
+
+func test_battle_found_only_shortly_after_the_search() -> void:
+	var toasts := _capture_toasts()
+	_feed('|updatesearch|{"searching":["gen9ou"],"games":null}')
+	_feed('|updatesearch|{"searching":[],"games":{"battle-gen9ou-507":"[Gen 9] OU"}}')
+	_wait(toasts, 16000)
+	_feed(">battle-gen9ou-507\n|init|battle\n|title|Alice vs. Bob")
+	assert_eq(_titles(toasts), [], "the battle opened 16 s after the search ended")
+	_release(toasts)
+	Rooms.battles.erase("battle-gen9ou-507")
+
+
+func test_spectating_after_a_cancelled_search_is_not_found() -> void:
+	var toasts := _capture_toasts()
+	_feed('|updatesearch|{"searching":["gen9ou"],"games":null}')
+	_feed('|updatesearch|{"searching":[],"games":null}')
+	_wait(toasts, 2000)
+	_feed(">battle-gen9ou-508\n|init|battle\n|title|Alice vs. Bob")
+	assert_eq(_titles(toasts), [], "cancelled, then watching someone else's battle")
+	_release(toasts)
+	Rooms.battles.erase("battle-gen9ou-508")
 
 
 func test_battles_that_come_back_are_not_found() -> void:
@@ -182,27 +205,36 @@ func _feed(frame: String) -> void:
 		EventBus.message_received.emit(msg)
 
 
-## Records toasts until _release; also keeps the bell's history as it was.
+## Records toasts until _release and gives the Notifier a clock that only moves with _wait;
+## also keeps the bell's history as it was.
 func _capture_toasts() -> Dictionary:
 	var toasts := []
 	var on_toast := func(toast: Dictionary) -> void: toasts.append(toast)
 	EventBus.toast_requested.connect(on_toast)
-	return {"toasts": toasts, "on_toast": on_toast, "history": Notifier.history.duplicate(), "unread": Notifier.unread}
+	var now := [1000000]
+	Notifier._clock = func() -> int: return now[0]
+	return {"toasts": toasts, "on_toast": on_toast, "now": now,
+		"history": Notifier.history.duplicate(), "unread": Notifier.unread}
 
 
+## Lets `ms` pass on the Notifier's clock.
+func _wait(capture: Dictionary, ms: int) -> void:
+	capture["now"][0] += ms
+
+
+## Undoes everything a test left in Notifier and Rooms, so tests don't depend on their order.
 func _release(capture: Dictionary) -> void:
 	EventBus.toast_requested.disconnect(capture["on_toast"])
 	Notifier.history = capture["history"]
 	Notifier.unread = capture["unread"]
+	Notifier._clock = Time.get_ticks_msec
 	Notifier._searching = false
 	Notifier._search_ended_ms = -1
+	Notifier._notified_rqid.clear()
+	Rooms.games = {}
+	Rooms.searching = PackedStringArray()
+	Rooms.replaying = false
 
 
 func _titles(capture: Dictionary) -> Array:
 	return capture["toasts"].map(func(toast: Dictionary) -> String: return toast["title"])
-
-
-## Pretends `ms` passed since the search changed.
-func _age_search(ms: int) -> void:
-	if Notifier._search_ended_ms >= 0:
-		Notifier._search_ended_ms -= ms

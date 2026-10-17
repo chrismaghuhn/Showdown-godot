@@ -23,6 +23,8 @@ var _current_screen := &""
 var _searching := false
 ## When the last search ended (matched or cancelled); -1 = none since the last battle found.
 var _search_ended_ms := -1
+## Milliseconds since start; tests swap it to let time pass.
+var _clock := Time.get_ticks_msec
 var _notified_rqid := {}
 var _timer_warned := {}
 
@@ -137,7 +139,7 @@ func _on_message(msg: PSMessage) -> void:
 		# right before the battle's |init|, however long the search took.
 		var searching := not (data.get("searching", []) as Array).is_empty()
 		if _searching and not searching:
-			_search_ended_ms = Time.get_ticks_msec()
+			_search_ended_ms = _clock.call()
 		_searching = searching
 
 
@@ -149,8 +151,10 @@ func _on_screen_changed(screen: StringName) -> void:
 
 
 func _on_battle_started(battle: BattleState) -> void:
-	# Battles coming back (reconnect, restart) weren't found, even right after a search ended.
-	if battle.restored or _search_ended_ms < 0 or Time.get_ticks_msec() - _search_ended_ms > SEARCH_GRACE_MS:
+	# A match lists its room in |updatesearch| "games" before the |init|; a battle we just
+	# opened (spectating) isn't ours. Battles coming back (reconnect, restart) weren't found.
+	if battle.restored or not Rooms.games.has(battle.room_id) or _search_ended_ms < 0 \
+			or _clock.call() - _search_ended_ms > SEARCH_GRACE_MS:
 		return
 	_search_ended_ms = -1
 	var format := battle.room_id.get_slice("-", 1)
