@@ -34,6 +34,14 @@ signal theme_changed(theme_id: String)
 signal ui_scale_changed(scale: float)
 ## Asks the app to show a screen, e.g. &"dev-console" or &"theme-gallery".
 signal navigation_requested(screen: StringName)
+## The visible screen changed (emitted by Main).
+signal screen_changed(screen: StringName)
+
+# Notifications
+## {event, title, body, actions: [[label, Callable]], key, persistent}
+signal toast_requested(toast: Dictionary)
+## Withdraw a toast by key (e.g. "your_turn:<room id>") once it was handled.
+signal toast_dismissed(key: String)
 
 # Plugins
 signal plugin_panel_added(plugin_id: String, slot: StringName, control: Control)

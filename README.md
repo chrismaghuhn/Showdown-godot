@@ -92,6 +92,10 @@ Battle screen: layout B "Desktop" from the design system — battlefield with sp
 spec'd stage, HUD cards with animated HP, field conditions, moves and switches from the server's
 request (hotkeys 1–4, Shift+1–6, Esc), tera, timer, battle log, chat and the plugin sidebar.
 
+Notifications: in-app toasts, sounds (exchangeable, sound packs) and native desktop notifications
+for battle found, your turn, timer low, challenges, mentions, private messages and battle end —
+configurable per event in Settings. See [docs/notifications.md](docs/notifications.md).
+
 Themes: three built-in themes (Midnight Dark, Classic Light, High Contrast), community themes as
 token-only JSON files, runtime switching and UI scaling. Open the **theme gallery** from the dev
 console or with `tools/run_client.sh --screen=theme-gallery`.
@@ -99,7 +103,9 @@ console or with `tools/run_client.sh --screen=theme-gallery`.
 See [docs/architecture.md](docs/architecture.md) for the layer rules,
 [docs/plugin-api.md](docs/plugin-api.md) for writing plugins and
 [docs/data-sources.md](docs/data-sources.md) for game data, caching and mirrors and
-[docs/theming.md](docs/theming.md) for themes and design tokens.
+[docs/theming.md](docs/theming.md) for themes and design tokens,
+[docs/notifications.md](docs/notifications.md) for notifications and sound packs.
+Third-party assets are listed in [CREDITS.md](CREDITS.md).
 
 ## License
 

@@ -22,7 +22,7 @@ This rule is what keeps the codebase from needing rewrites as features grow.
 | `data/` | `Dex`, `DexSpecies`, `DexMove`, `DexEntry`, `JsObjectParser` | `protocol/` |
 | `model/` | `BattleState`, `BattleSide`, `BattlePokemon` | `protocol/`, `data/` |
 | `net/` | `Connection` (autoload), `LoginClient`, `HttpCache` | `protocol/`, `core/` |
-| `core/` | `AppConfig`, `EventBus`, `Rooms`, `GameData` (autoloads) | `protocol/`, `data/`, `model/`, `net/` |
+| `core/` | `AppConfig`, `EventBus`, `Rooms`, `GameData`, `Sounds`, `Notifier` (autoloads), `NotificationEvents`, `NativeNotifier` | `protocol/`, `data/`, `model/`, `net/` |
 | `plugins/` | `Plugins` (autoload), `PluginAPI`, `PluginManifest`, `ClientPlugin` | everything below |
 | `ui/` | `screens/<name>/`, `components/`, `theme/` (`Themes` autoload, `ThemeTokens`, `ThemeBuilder`) | everything below, **only via EventBus / public methods** |
 | `app/` | entry scene, wiring, dev automation | everything |
