@@ -143,10 +143,21 @@ func _pick(item: TreeItem) -> void:
 
 
 func _refresh_label() -> void:
-	var name := FormatList.display_name(Rooms.formats, selected_id)
-	if name.is_empty():
-		name = str(AppConfig.get_setting("play", "last_format_name", selected_id)) \
-			if selected_id == str(AppConfig.get_setting("play", "last_format", "")) else selected_id
-	if name.is_empty() and selected_id == QuickBattleCard.DEFAULT_FORMAT:
-		name = "[Gen 9] Random Battle"
-	_label.text = name if not name.is_empty() else tr("Choose a format")
+	_label.text = label_for(selected_id, Rooms.formats, str(AppConfig.get_setting("play", "last_format", "")),
+		str(AppConfig.get_setting("play", "last_format_name", "")))
+
+
+## The name to show for a format, also before the server's list has arrived (first launch,
+## offline): the server's name, else the default format's name, else the name remembered for
+## the last format, else the id.
+static func label_for(format_id: String, formats: Array[Dictionary], last_id: String, last_name: String) -> String:
+	if format_id.is_empty():
+		return str(TranslationServer.translate("Choose a format"))
+	var name := FormatList.display_name(formats, format_id)
+	if not name.is_empty():
+		return name
+	if format_id == QuickBattleCard.DEFAULT_FORMAT:
+		return "[Gen 9] Random Battle"
+	if format_id == last_id and not last_name.is_empty():
+		return last_name
+	return format_id

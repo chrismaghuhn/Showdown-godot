@@ -162,3 +162,32 @@ func test_rated_battles_are_marked() -> void:
 	tour.apply(PSParser.parse_frame("|rated|Tournament battle")[0])
 	assert_true(not tour.rated, "|rated|MESSAGE is only a note")
 	assert_true(not BattleState.new("x").rated, "challenge battles aren't")
+
+
+func test_format_label_before_the_server_list() -> void:
+	var formats := _formats()
+	assert_eq(FormatPicker.label_for("gen9ou", formats, "", ""), "[Gen 9] OU", "the server's name")
+	assert_eq(FormatPicker.label_for("gen9randombattle", [] as Array[Dictionary], "", ""), "[Gen 9] Random Battle",
+		"first launch, offline: the default's name, not its id")
+	assert_eq(FormatPicker.label_for("gen8randombattle", [] as Array[Dictionary], "gen8randombattle", "[Gen 8] Random Battle"),
+		"[Gen 8] Random Battle", "offline: the remembered name")
+	assert_eq(FormatPicker.label_for("gen8randombattle", [] as Array[Dictionary], "gen9ou", "[Gen 9] OU"),
+		"gen8randombattle", "nothing known: the id")
+	assert_eq(FormatPicker.label_for("", formats, "", ""), "Choose a format", "nothing picked")
+	assert_eq(FormatPicker.label_for("gen8randombattle", [] as Array[Dictionary], "gen8randombattle", ""),
+		"gen8randombattle", "remembered without a name: the id")
+	assert_eq(FormatPicker.label_for("gen9randombattle", [] as Array[Dictionary], "gen9randombattle", "[Gen 8] Random Battle"),
+		"[Gen 9] Random Battle", "the default's name wins over a stale remembered one")
+
+
+func test_remembered_format_and_name_stay_together() -> void:
+	var was_formats: Array[Dictionary] = Rooms.formats
+	Rooms.formats = _formats()
+	Rooms.remember_format("gen9ou")
+	assert_eq([AppConfig.get_setting("play", "last_format"), AppConfig.get_setting("play", "last_format_name")],
+		["gen9ou", "[Gen 9] OU"], "known format: id and name")
+	Rooms.formats = [] as Array[Dictionary]
+	Rooms.remember_format("gen8randombattle")
+	assert_eq([AppConfig.get_setting("play", "last_format"), AppConfig.get_setting("play", "last_format_name")],
+		["gen8randombattle", ""], "unknown name: none, rather than the last format's")
+	Rooms.formats = was_formats

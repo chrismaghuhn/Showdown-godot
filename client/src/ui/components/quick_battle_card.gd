@@ -120,10 +120,7 @@ func _refresh() -> void:
 
 ## The format and its name, so the card can show it before the server's list arrives.
 func _remember(format_id: String) -> void:
-	AppConfig.set_setting("play", "last_format", format_id)
-	var name := FormatList.display_name(Rooms.formats, format_id)
-	if not name.is_empty():
-		AppConfig.set_setting("play", "last_format_name", name)
+	Rooms.remember_format(format_id)
 
 
 func _field(label_text: String, control: Control) -> VBoxContainer:

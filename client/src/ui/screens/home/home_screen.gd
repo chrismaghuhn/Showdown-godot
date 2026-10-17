@@ -38,10 +38,7 @@ func _ready() -> void:
 	_build()
 	_format.select(str(AppConfig.get_setting("play", "last_format", QuickBattleCard.DEFAULT_FORMAT)))
 	_format.format_selected.connect(func(id: String) -> void:
-		AppConfig.set_setting("play", "last_format", id)
-		var name := FormatList.display_name(Rooms.formats, id)
-		if not name.is_empty():
-			AppConfig.set_setting("play", "last_format_name", name)
+		Rooms.remember_format(id)
 		_refresh_find())
 	EventBus.search_changed.connect(func(_s: PackedStringArray, _g: Dictionary) -> void: _refresh_find())
 	EventBus.formats_changed.connect(_refresh_find)

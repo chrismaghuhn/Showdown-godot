@@ -140,10 +140,17 @@ func request_ratings(fresh := false) -> void:
 		EventBus.ratings_changed.emit()
 
 
+## Remembers the last format with its name - or with no name while the server's list isn't
+## known, so the remembered name never belongs to another format.
+func remember_format(format_id: String) -> void:
+	AppConfig.set_setting("play", "last_format", format_id)
+	AppConfig.set_setting("play", "last_format_name", FormatList.display_name(formats, format_id))
+
+
 ## Searches a battle in `format_id` (e.g. "gen9randombattle"). Not signed in yet: asks for a
 ## name first and searches right after.
 func search(format_id: String) -> void:
-	AppConfig.set_setting("play", "last_format", format_id)
+	remember_format(format_id)
 	if not Connection.signed_in:
 		_pending_search = format_id
 		EventBus.sign_in_requested.emit()
