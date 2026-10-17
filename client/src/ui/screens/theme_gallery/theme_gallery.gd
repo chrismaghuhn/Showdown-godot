@@ -180,16 +180,23 @@ func _typography_section(parent: Control) -> void:
 
 
 func _icons_section(parent: Control) -> void:
-	var box := _section(parent, "Icons", "Hand-drawn, 16px grid, 1.5px stroke, tinted by the theme. Always paired with a label or tooltip.")
-	var grid := GridContainer.new()
-	grid.columns = 3
-	box.add_child(grid)
-	for icon_name in Icons.names():
-		var row := HBoxContainer.new()
-		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.add_child(IconView.new(icon_name, "color.text.primary"))
-		row.add_child(_label(icon_name, &"MutedLabel"))
-		grid.add_child(row)
+	var box := _section(parent, "Icons", "%d hand-drawn icons, 16px grid, 1.5px stroke, tinted by the theme. Always paired with a label or tooltip." % Icons.names().size())
+	for group_name in Icons.groups():
+		box.add_child(_label(group_name, &"CapsLabel", true))
+		var grid := GridContainer.new()
+		grid.columns = 3
+		box.add_child(grid)
+		for icon_name in Icons.names():
+			if Icons.group(icon_name) != group_name:
+				continue
+			var row := HBoxContainer.new()
+			row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			row.tooltip_text = icon_name
+			var view := IconView.new(icon_name, "color.text.primary")
+			view.tooltip_text = icon_name
+			row.add_child(view)
+			row.add_child(_label(Icons.label(icon_name), &"MutedLabel"))
+			grid.add_child(row)
 
 
 func _moves_section(parent: Control) -> void:
@@ -238,7 +245,7 @@ func _panels_section(parent: Control) -> void:
 	var box := _section(parent, "Surfaces", "Raised · sunken · overlay (tooltips, menus, toasts) · selectable slot.")
 	var row := HBoxContainer.new()
 	box.add_child(row)
-	for spec: Array in [["Raised", &"RaisedPanel"], ["Sunken (log, inputs)", &"SunkenPanel"], ["Overlay · shadow.md", &"OverlayPanel"]]:
+	for spec: Array in [["Raised", &"RaisedPanel"], ["Sunken (log, inputs)", &"SunkenPanel"], ["Overlay · shadow.md", &"OverlayPanel"], ["Scrim", &"Scrim"]]:
 		var panel := PanelContainer.new()
 		panel.theme_type_variation = spec[1]
 		panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL

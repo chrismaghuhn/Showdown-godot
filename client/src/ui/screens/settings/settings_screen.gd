@@ -4,6 +4,7 @@ extends Control
 
 const PAGES := ["appearance", "notifications", "sounds"]
 const PAGE_TITLES := {"appearance": "Appearance", "notifications": "Notifications", "sounds": "Sounds"}
+const PAGE_ICONS := {"appearance": "ui-theme", "notifications": "ui-notify", "sounds": "ui-sound"}
 
 var _page_holder := VBoxContainer.new()
 var _nav := VBoxContainer.new()
@@ -42,6 +43,7 @@ func _build() -> void:
 	for page: String in PAGES:
 		var button := Button.new()
 		button.text = tr(PAGE_TITLES[page])
+		button.icon = Icons.get_icon(PAGE_ICONS[page])
 		button.theme_type_variation = &"SlotButton"
 		button.toggle_mode = true
 		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -228,7 +230,7 @@ func _volume_control() -> Control:
 	row.add_child(value)
 	var play := Button.new()
 	play.theme_type_variation = &"IconButton"
-	play.text = "▶"
+	play.icon = Icons.get_icon("ui-play")
 	play.tooltip_text = tr("Play test sound")
 	play.pressed.connect(func() -> void: Sounds.play("your_turn", Notifier.volume()))
 	row.add_child(play)
@@ -276,7 +278,7 @@ func _build_sounds() -> void:
 		controls.add_child(choice)
 		var play := Button.new()
 		play.theme_type_variation = &"IconButton"
-		play.text = "▶"
+		play.icon = Icons.get_icon("ui-play")
 		play.tooltip_text = tr("Play")
 		play.pressed.connect(func() -> void: Sounds.play(event, Notifier.volume()))
 		controls.add_child(play)

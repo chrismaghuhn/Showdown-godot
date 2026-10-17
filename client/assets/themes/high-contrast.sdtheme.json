@@ -36,6 +36,7 @@
     "color.plugin.default": "#3EE6D4",
     "color.plugin.subtle": "#00332F",
     "color.plugin.text": "#3EE6D4",
+    "color.scrim": "#000000CC",
     "color.success.default": "#3DFF9A",
     "color.success.subtle": "#00331A",
     "color.success.text": "#3DFF9A",

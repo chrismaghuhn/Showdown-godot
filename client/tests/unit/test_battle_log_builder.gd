@@ -28,6 +28,7 @@ func test_opponent_names_and_secondary_rows() -> void:
 		"|-damage|p2a: Ghold|94/100|[from] Stealth Rock")
 	assert_eq(entries[1]["text"], "The opposing Ghold used [b]Nasty Plot[/b]!", "opposing prefix")
 	assert_eq(entries[2]["indent"], true, "boost row indented")
+	assert_eq(entries[2]["text"], "The opposing Ghold", "name at the start of a row is capitalized")
 	assert_eq(entries[2]["chips"], [["+2 SpA", "up"]], "boost chip")
 	assert_eq(entries[3]["text"], "Stealth Rock", "damage source row")
 	assert_eq(entries[3]["chips"], [["Ghold −6%", "down"]], "hazard damage chip")

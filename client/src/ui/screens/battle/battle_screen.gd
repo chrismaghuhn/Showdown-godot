@@ -291,7 +291,7 @@ func _build_right_column() -> void:
 	_chat_input.text_submitted.connect(func(_t: String) -> void: _send_chat())
 	input_row.add_child(_chat_input)
 	var send := Button.new()
-	send.icon = Icons.get_icon("ui-chat")
+	send.icon = Icons.get_icon("ui-send")
 	send.tooltip_text = tr("Send message")
 	send.pressed.connect(_send_chat)
 	input_row.add_child(send)

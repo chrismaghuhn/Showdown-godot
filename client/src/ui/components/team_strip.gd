@@ -26,9 +26,9 @@ class TeamIcon extends Control:
 			box.set_expand_margin_all(1)
 		draw_style_box(box, rect)
 		if is_fainted:
-			var c := get_theme_color("fainted", "TeamIcon")
-			draw_line(Vector2(5, 5), size - Vector2(5, 5), c, 1.5, true)
-			draw_line(Vector2(size.x - 5, 5), Vector2(5, size.y - 5), c, 1.5, true)
+			var mark := Icons.get_icon("ui-close")
+			if mark != null:
+				draw_texture_rect(mark, Rect2(Vector2(2, 2), size - Vector2(4, 4)), false, get_theme_color("fainted", "TeamIcon"))
 
 
 func _init() -> void:

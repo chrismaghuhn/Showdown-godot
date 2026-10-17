@@ -41,7 +41,7 @@ func _init(title := "", icon_name := "") -> void:
 	actions.add_theme_constant_override("separation", 2)
 	row.add_child(actions)
 	_collapse.theme_type_variation = &"IconButton"
-	_collapse.text = "▾"
+	_collapse.icon = Icons.get_icon("ui-chevron-down")
 	_collapse.tooltip_text = tr("Collapse panel")
 	_collapse.pressed.connect(func() -> void: set_collapsed(not collapsed))
 	row.add_child(_collapse)
@@ -90,7 +90,7 @@ func set_plugin_source(source_line: String) -> void:
 func set_collapsed(value: bool) -> void:
 	collapsed = value
 	body.visible = not collapsed
-	_collapse.text = "▸" if collapsed else "▾"
+	_collapse.icon = Icons.get_icon("ui-chevron-right" if collapsed else "ui-chevron-down")
 	_collapse.tooltip_text = tr("Expand panel") if collapsed else tr("Collapse panel")
 	size_flags_vertical = Control.SIZE_SHRINK_BEGIN if collapsed else _expand_flag
 	collapsed_changed.emit(collapsed)
