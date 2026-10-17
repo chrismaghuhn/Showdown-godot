@@ -78,3 +78,9 @@ func test_spectator_keeps_neutral_names() -> void:
 		"|move|p1a: Ghold|Shadow Ball|"
 	var entries := _replay(replay, "ironquill")
 	assert_eq(entries.back()["text"], "Ghold used [b]Shadow Ball[/b]!", "no opposing prefix for spectators")
+
+
+func test_replace_caches_the_revealed_pokemons_hp() -> void:
+	var entries := _run("|switch|p2a: Pikachu|Pikachu|100/100\n|-damage|p2a: Pikachu|40/100\n" +
+		"|replace|p2a: Zoroark|Zoroark, M\n|turn|2\n|move|p1a: X|Tackle|p2a: Zoroark\n|-damage|p2a: Zoroark|20/100")
+	assert_eq(entries.back()["chips"], [["Zoroark −20%", "down"]], "damage is relative to the disguise's HP")

@@ -20,6 +20,8 @@ var revealed_moves := PackedStringArray()
 ## Item and ability: from |request| (ids) for own Pokémon, from protocol (names) once revealed.
 var item := ""
 var ability := ""
+## The item it lost last (eaten, used up, knocked off); its effect doesn't reveal it again.
+var prev_item := ""
 ## Tera type once terastallized ("" = not terastallized).
 var tera_type := ""
 ## Own Pokémon only: the type it would terastallize into.
@@ -28,6 +30,8 @@ var tera_option := ""
 var volatiles := {}
 ## Own Pokémon only: exact stats from |request| (atk, def, spa, spd, spe).
 var stats := {}
+## HP and status before its last switch-in, restored when that turns out to be an Illusion.
+var before_switch := {}
 
 
 func _init(nickname := "") -> void:
@@ -71,6 +75,39 @@ func hp_percent() -> float:
 
 func boost(stat: String, amount: int) -> void:
 	boosts[stat] = clampi(int(boosts.get(stat, 0)) + amount, -6, 6)
+
+
+## Sets a stat stage; 0 removes it.
+func set_boost(stat: String, stage: int) -> void:
+	if stage == 0:
+		boosts.erase(stat)
+	else:
+		boosts[stat] = stage
+
+
+## Removes the negative (direction -1) or positive (direction 1) stages.
+func clear_boosts(direction: int) -> void:
+	for stat: String in boosts.keys():
+		if signi(int(boosts[stat])) == direction:
+			boosts.erase(stat)
+
+
+## |replace|: this Pokémon was in battle disguised as `disguise` (Illusion). It takes over what
+## happened in the slot; the disguise goes back to how it was before it "switched in".
+func take_over_from(disguise: BattlePokemon) -> void:
+	hp = disguise.hp
+	max_hp = disguise.max_hp
+	status = disguise.status
+	fainted = disguise.fainted
+	boosts = disguise.boosts.duplicate()
+	volatiles = disguise.volatiles.duplicate()
+	if not disguise.tera_type.is_empty():
+		tera_type = disguise.tera_type
+		disguise.tera_type = ""
+	disguise.max_hp = int(disguise.before_switch.get("max_hp", disguise.max_hp))
+	disguise.hp = int(disguise.before_switch.get("hp", disguise.max_hp))
+	disguise.status = str(disguise.before_switch.get("status", ""))
+	disguise.fainted = bool(disguise.before_switch.get("fainted", false))
 
 
 func reveal_move(move_name: String) -> void:

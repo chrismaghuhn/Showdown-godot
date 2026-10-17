@@ -41,6 +41,9 @@ func push(msg: PSMessage, battle: BattleState) -> void:
 			var player := battle.side(ref["side"]).player_name
 			_row("%s sent out %s!" % [esc(player), b(ref["name"])])
 			_remember_hp(msg.arg(0), battle)
+		"replace":
+			# Illusion ended: the revealed Pokémon has the disguise's HP now.
+			_remember_hp(msg.arg(0), battle)
 		"move":
 			_last_move = _row("%s used %s!" % [_name(msg.arg(0), battle, true), b(msg.arg(1))])
 		"-supereffective":
