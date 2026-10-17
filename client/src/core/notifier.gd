@@ -5,10 +5,18 @@ extends Node
 ## withdrawn with EventBus.toast_dismissed(key) once handled.
 ##
 ## Disabled (except toasts) in headless runs and with --no-notifications (tests, e2e bots).
+##
+## Everything that reached the user (toast or desktop) also goes into `history`, newest first,
+## for the bell in the app header; `unread` counts what came in since the bell was last opened.
 
 const SECTION := "notifications"
 ## A battle that starts this soon after we were searching counts as "battle found".
 const SEARCH_GRACE_MS := 15000
+const HISTORY_SIZE := 30
+
+## [{event, title, body, time (unix seconds), screen}] newest first.
+var history: Array[Dictionary] = []
+var unread := 0
 
 var _sound_and_desktop := true
 var _current_screen := &""
@@ -70,6 +78,8 @@ func post(event: String, title: String, body: String, actions: Array = [], key :
 	if channels["toast"]:
 		EventBus.toast_requested.emit({"event": event, "title": title, "body": body, "actions": actions,
 			"key": key, "persistent": event in NotificationEvents.PERSISTENT})
+	if (channels["toast"] or channels["desktop"]) and key != "test":
+		_remember(event, title, body, _screen_for_key(key))
 	if not _sound_and_desktop:
 		return
 	if channels["sound"]:
@@ -78,6 +88,34 @@ func post(event: String, title: String, body: String, actions: Array = [], key :
 		NativeNotifier.post(title, body)
 	if event == "your_turn" and bool(get_value("flash_taskbar")) and not get_window().has_focus():
 		DisplayServer.window_request_attention()
+
+
+## The bell was opened: everything in the history counts as seen.
+func mark_all_read() -> void:
+	if unread > 0:
+		unread = 0
+		EventBus.notifications_changed.emit()
+
+
+func clear_history() -> void:
+	history.clear()
+	unread = 0
+	EventBus.notifications_changed.emit()
+
+
+func _remember(event: String, title: String, body: String, screen: String) -> void:
+	history.push_front({"event": event, "title": title, "body": body,
+		"time": int(Time.get_unix_time_from_system()), "screen": screen})
+	if history.size() > HISTORY_SIZE:
+		history.resize(HISTORY_SIZE)
+	unread = mini(unread + 1, HISTORY_SIZE)
+	EventBus.notifications_changed.emit()
+
+
+## "your_turn:battle-gen9ou-12" -> "battle:battle-gen9ou-12" (where clicking it leads).
+static func _screen_for_key(key: String) -> String:
+	var room_id := key.get_slice(":", 1) if key.contains(":") else ""
+	return "battle:" + room_id if room_id.begins_with("battle-") else ""
 
 
 ## "Send test notification" in the settings: all channels, regardless of focus.
@@ -97,9 +135,9 @@ func _on_message(msg: PSMessage) -> void:
 
 func _on_screen_changed(screen: StringName) -> void:
 	_current_screen = screen
-	if screen == &"battle":
-		for room_id: String in Rooms.battles:
-			EventBus.toast_dismissed.emit("your_turn:" + room_id)
+	# Looking at a battle handles its "your turn" toast.
+	if str(screen).begins_with("battle:"):
+		EventBus.toast_dismissed.emit("your_turn:" + str(screen).trim_prefix("battle:"))
 
 
 func _on_battle_started(battle: BattleState) -> void:
@@ -108,8 +146,8 @@ func _on_battle_started(battle: BattleState) -> void:
 	_last_searching_ms = -1
 	var format := battle.room_id.get_slice("-", 1)
 	post("battle_found", tr("Battle found"), tr("%s · opening the battle") % format,
-		[[tr("Open battle"), _go_to_battle], [tr("Stay here"), Callable()]], "battle_found:" + battle.room_id,
-		_current_screen == &"battle")
+		[[tr("Open battle"), _go_to_battle.bind(battle.room_id)], [tr("Stay here"), Callable()]],
+		"battle_found:" + battle.room_id, _on_battle_screen(battle))
 
 
 func _on_battle_request(battle: BattleState, request: Dictionary) -> void:
@@ -121,7 +159,7 @@ func _on_battle_request(battle: BattleState, request: Dictionary) -> void:
 		return
 	_notified_rqid[battle.room_id] = rqid
 	post("your_turn", tr("Your turn · Turn %d") % maxi(battle.turn, 1), _battle_line(battle),
-		[[tr("Go to battle"), _go_to_battle]], "your_turn:" + battle.room_id, _current_screen == &"battle")
+		[[tr("Go to battle"), _go_to_battle.bind(battle.room_id)]], "your_turn:" + battle.room_id, _on_battle_screen(battle))
 
 
 func _on_battle_updated(battle: BattleState, msg: PSMessage) -> void:
@@ -135,7 +173,7 @@ func _on_battle_updated(battle: BattleState, msg: PSMessage) -> void:
 	_timer_warned[battle.room_id] = battle.turn
 	post("timer_low", tr("Timer running low · %d:%02d") % [battle.timer_turn_seconds / 60, battle.timer_turn_seconds % 60],
 		tr("%s · Turn %d — choose before your clock runs out.") % [_battle_line(battle), battle.turn],
-		[[tr("Go to battle"), _go_to_battle]], "timer_low:" + battle.room_id, _current_screen == &"battle")
+		[[tr("Go to battle"), _go_to_battle.bind(battle.room_id)]], "timer_low:" + battle.room_id, _on_battle_screen(battle))
 
 
 func _on_battle_ended(battle: BattleState, winner: String) -> void:
@@ -144,7 +182,7 @@ func _on_battle_ended(battle: BattleState, winner: String) -> void:
 	var title := tr("The battle ended in a tie")
 	if not winner.is_empty():
 		title = tr("You won") if PSParser.to_id(winner) == PSParser.to_id(Connection.username) else tr("You lost")
-	post("battle_ended", title, _battle_line(battle), [], "", _current_screen == &"battle")
+	post("battle_ended", title, _battle_line(battle), [], "battle_ended:" + battle.room_id, _on_battle_screen(battle))
 
 
 func _on_private_message(from: String, to: String, text: String) -> void:
@@ -171,12 +209,14 @@ func _on_chat_message(room_id: String, user: String, text: String) -> void:
 
 
 func _battle_line(battle: BattleState) -> String:
-	var opponent_id := "p2" if battle.my_side != "p2" else "p1"
-	var opponent := battle.side(opponent_id).player_name
-	var format := battle.format if not battle.format.is_empty() else battle.room_id.get_slice("-", 1)
-	return tr("vs %s · %s") % [opponent, format] if not opponent.is_empty() else format
+	var opponent := battle.opponent_name()
+	return tr("vs %s · %s") % [opponent, battle.display_format()] if not opponent.is_empty() else battle.display_format()
 
 
-func _go_to_battle() -> void:
-	EventBus.navigation_requested.emit(&"battle")
+func _on_battle_screen(battle: BattleState) -> bool:
+	return _current_screen == StringName("battle:" + battle.room_id)
+
+
+func _go_to_battle(room_id: String) -> void:
+	EventBus.navigation_requested.emit(StringName("battle:" + room_id))
 	get_window().grab_focus()

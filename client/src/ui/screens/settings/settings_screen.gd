@@ -2,9 +2,9 @@ extends Control
 ## Settings (design: "Settings · Notifications" and "Settings · Appearance"): navigation on the
 ## left, one page at a time on the right. Settings save automatically.
 
-const PAGES := ["appearance", "notifications", "sounds"]
-const PAGE_TITLES := {"appearance": "Appearance", "notifications": "Notifications", "sounds": "Sounds"}
-const PAGE_ICONS := {"appearance": "ui-theme", "notifications": "ui-notify", "sounds": "ui-sound"}
+const PAGES := ["general", "appearance", "notifications", "sounds"]
+const PAGE_TITLES := {"general": "General", "appearance": "Appearance", "notifications": "Notifications", "sounds": "Sounds"}
+const PAGE_ICONS := {"general": "ui-general", "appearance": "ui-theme", "notifications": "ui-notify", "sounds": "ui-sound"}
 
 var _page_holder := VBoxContainer.new()
 var _nav := VBoxContainer.new()
@@ -18,8 +18,8 @@ var _current := ""
 func _ready() -> void:
 	_build()
 	EventBus.theme_changed.connect(func(_id: String) -> void: _rebuild_current.call_deferred())
-	var start_page := AppConfig.cli("settings-page", "notifications")
-	show_page(start_page if start_page in PAGES else "notifications")
+	var start_page := AppConfig.cli("settings-page", "general")
+	show_page(start_page if start_page in PAGES else "general")
 
 
 func _build() -> void:
@@ -87,12 +87,38 @@ func _rebuild_current() -> void:
 		child.queue_free()
 	_sound_rows.clear()
 	match _current:
+		"general":
+			_build_general()
 		"appearance":
 			_build_appearance()
 		"notifications":
 			_build_notifications()
 		"sounds":
 			_build_sounds()
+
+
+# --- General ----------------------------------------------------------------------------------
+
+func _build_general() -> void:
+	_page_header(tr("General"), tr("How the app starts, your sign-in, and tools for developers."))
+	var start := _section(tr("Start"))
+	start.add_child(_config_switch("general", "show_start_screen", true, tr("Show the start screen when the app starts"),
+		tr("Only at launch. Otherwise the app opens on Home.")))
+	var stay := CheckButton.new()
+	stay.button_pressed = Connection.stay_signed_in
+	stay.toggled.connect(func(on: bool) -> void: Connection.set_stay_signed_in(on))
+	start.add_child(_setting_row(tr("Stay signed in"),
+		tr("Keeps your name and the login session on this computer and connects on launch. Your password is never saved."), stay))
+	var dev := _section(tr("Developer"))
+	dev.add_child(_config_switch("general", "developer_mode", false, tr("Developer mode"),
+		tr("Adds the developer console and the theme gallery to Ctrl+K. For plugin and theme authors.")))
+
+
+func _config_switch(section: String, key: String, default: bool, title: String, description: String) -> Control:
+	var toggle := CheckButton.new()
+	toggle.button_pressed = bool(AppConfig.get_setting(section, key, default))
+	toggle.toggled.connect(func(on: bool) -> void: AppConfig.set_setting(section, key, on))
+	return _setting_row(title, description, toggle)
 
 
 # --- Appearance -------------------------------------------------------------------------------

@@ -125,6 +125,11 @@ func disable(id: String) -> void:
 func _exit_tree() -> void:
 	OS.remove_logger(_watch)
 	_watch.manager = null
+	# Panels waiting for a battle tab to show them aren't in the tree; free them here.
+	for p in _panels:
+		var control: Control = p["control"]
+		if is_instance_valid(control) and not control.is_inside_tree():
+			control.free()
 
 
 ## Switches a misbehaving plugin off until reload() (design: "Damage Calc paused").
