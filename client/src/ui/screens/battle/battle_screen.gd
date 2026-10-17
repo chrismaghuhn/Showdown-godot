@@ -638,7 +638,6 @@ func _refresh_choices(mine: BattleSide, my_active: BattlePokemon, opp_active: Ba
 	var moves: Array = active_req.get("moves", [])
 	var show_moves := not team_preview and not moves.is_empty()
 	_moves.visible = show_moves
-	var target: DexSpecies = dex.get_species(opp_active.species) if dex != null and opp_active != null else null
 	for i in 4:
 		var button := _move_buttons[i]
 		button.visible = i < moves.size()
@@ -657,7 +656,7 @@ func _refresh_choices(mine: BattleSide, my_active: BattlePokemon, opp_active: Ba
 		var pp_text := "%s/%s" % [move.get("pp", "?"), move.get("maxpp", "?")]
 		var move_name := str(move.get("move", ""))
 		var hotkey := str(i + 1)
-		button.tooltip_builder = func() -> Control: return BattleTooltips.move_tooltip(move_name, GameData.dex, pp_text, hotkey, target)
+		button.tooltip_builder = func() -> Control: return BattleTooltips.move_tooltip(move_name, GameData.dex, pp_text, hotkey, opp_active)
 
 	# Switches (own team in request order)
 	var team: Array = _request.get("side", {}).get("pokemon", [])
