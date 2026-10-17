@@ -162,6 +162,8 @@ func _build_panels() -> void:
 		"SunkenPanel": _box(c("color.surface.sunken"), c("color.border.subtle"), _bw, md, t.px("space.sm"), t.px("space.sm")),
 		"OverlayPanel": _shadow(_box(c("color.surface.overlay"), c("color.border.default"), _bw, lg, pad, pad), "md"),
 		"FlatPanel": _box(c("color.surface.panel"), Color.TRANSPARENT, 0, 0, 0, 0),
+		# Backdrop behind the command palette and modal dialogs.
+		"Scrim": _box(c("color.scrim"), Color.TRANSPARENT, 0, 0, 0, 0),
 	}
 	for variation: String in variations:
 		_variation(variation, "PanelContainer")

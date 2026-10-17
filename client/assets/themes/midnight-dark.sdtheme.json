@@ -36,6 +36,7 @@
     "color.plugin.default": "#5CC2B0",
     "color.plugin.subtle": "#13302C",
     "color.plugin.text": "#5CC2B0",
+    "color.scrim": "#00000099",
     "color.status.brn.bg": "#E5603A",
     "color.status.brn.fg": "#161616",
     "color.status.frz.bg": "#8CCFEA",

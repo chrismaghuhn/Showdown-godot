@@ -85,3 +85,10 @@ func test_contrast_ratio_and_check() -> void:
 	var defs := _with("low", JSON.stringify({"format": 1, "tokens": {"color.text.muted": "#2A2A2D"}}))
 	var low := ThemeTokens.resolve("low", defs, "midnight-dark")
 	assert_true("\n".join(low.warnings).contains("low contrast") and "\n".join(low.warnings).contains("color.text.muted"), "contrast warning")
+
+
+func test_scrim_token_in_all_themes() -> void:
+	var defs := _builtin_definitions()
+	assert_eq(ThemeTokens.resolve("midnight-dark", defs, "midnight-dark").color("color.scrim"), Color.html("#00000099"), "dark")
+	assert_eq(ThemeTokens.resolve("classic-light", defs, "midnight-dark").color("color.scrim"), Color.html("#11111166"), "light")
+	assert_eq(ThemeTokens.resolve("high-contrast", defs, "midnight-dark").color("color.scrim"), Color.html("#000000CC"), "high contrast")

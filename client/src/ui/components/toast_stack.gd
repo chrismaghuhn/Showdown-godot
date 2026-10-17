@@ -6,8 +6,8 @@ extends VBoxContainer
 ## Hovering a toast pauses its timer.
 
 const EVENT_ICONS := {
-	"battle_found": "ui-search", "your_turn": "ui-notify", "timer_low": "ui-timer",
-	"challenge": "ui-forfeit", "mention": "ui-chat", "private_message": "ui-chat", "battle_ended": "ui-notify",
+	"battle_found": "ui-battle", "your_turn": "ui-notify", "timer_low": "ui-timer",
+	"challenge": "ui-user-plus", "mention": "ui-chat", "private_message": "ui-inbox", "battle_ended": "ui-check-circle",
 }
 
 
@@ -93,7 +93,7 @@ func _build(toast: Dictionary) -> PanelContainer:
 	head.add_child(time)
 	var close := Button.new()
 	close.theme_type_variation = &"IconButton"
-	close.text = "×"
+	close.icon = Icons.get_icon("ui-close")
 	close.tooltip_text = tr("Dismiss")
 	close.pressed.connect(_close.bind(panel))
 	head.add_child(close)

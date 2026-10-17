@@ -1,0 +1,486 @@
+{
+ "version": "0.2",
+ "size": 16,
+ "stroke": 1.5,
+ "color": "#FFFFFF",
+ "icons": [
+  {
+   "name": "ui-home",
+   "label": "Home",
+   "group": "Navigation"
+  },
+  {
+   "name": "ui-back",
+   "label": "Back",
+   "group": "Navigation"
+  },
+  {
+   "name": "ui-chevron-down",
+   "label": "Chevron down",
+   "group": "Navigation"
+  },
+  {
+   "name": "ui-chevron-up",
+   "label": "Chevron up",
+   "group": "Navigation"
+  },
+  {
+   "name": "ui-chevron-right",
+   "label": "Chevron right",
+   "group": "Navigation"
+  },
+  {
+   "name": "ui-send",
+   "label": "Send",
+   "group": "Navigation"
+  },
+  {
+   "name": "ui-close",
+   "label": "Close · KO",
+   "group": "Navigation"
+  },
+  {
+   "name": "ui-more",
+   "label": "More",
+   "group": "Navigation"
+  },
+  {
+   "name": "ui-search",
+   "label": "Search",
+   "group": "Navigation"
+  },
+  {
+   "name": "ui-settings",
+   "label": "Settings",
+   "group": "Navigation"
+  },
+  {
+   "name": "ui-pop-out",
+   "label": "Pop out",
+   "group": "Navigation"
+  },
+  {
+   "name": "ui-sidebar",
+   "label": "Sidebar panel",
+   "group": "Navigation"
+  },
+  {
+   "name": "ui-grid-view",
+   "label": "Grid view",
+   "group": "Navigation"
+  },
+  {
+   "name": "ui-list-view",
+   "label": "List view",
+   "group": "Navigation"
+  },
+  {
+   "name": "ui-sort",
+   "label": "Sort",
+   "group": "Navigation"
+  },
+  {
+   "name": "ui-drag",
+   "label": "Drag",
+   "group": "Navigation"
+  },
+  {
+   "name": "ui-watch",
+   "label": "Watch",
+   "group": "Navigation"
+  },
+  {
+   "name": "ui-leave",
+   "label": "Leave",
+   "group": "Navigation"
+  },
+  {
+   "name": "ui-quit",
+   "label": "Quit",
+   "group": "Navigation"
+  },
+  {
+   "name": "ui-plus",
+   "label": "Add",
+   "group": "Actions"
+  },
+  {
+   "name": "ui-edit",
+   "label": "Edit",
+   "group": "Actions"
+  },
+  {
+   "name": "ui-copy",
+   "label": "Copy",
+   "group": "Actions"
+  },
+  {
+   "name": "ui-paste",
+   "label": "Paste",
+   "group": "Actions"
+  },
+  {
+   "name": "ui-undo",
+   "label": "Undo",
+   "group": "Actions"
+  },
+  {
+   "name": "ui-redo",
+   "label": "Redo",
+   "group": "Actions"
+  },
+  {
+   "name": "ui-reset",
+   "label": "Reset",
+   "group": "Actions"
+  },
+  {
+   "name": "ui-trash",
+   "label": "Delete",
+   "group": "Actions"
+  },
+  {
+   "name": "ui-import",
+   "label": "Import",
+   "group": "Actions"
+  },
+  {
+   "name": "ui-export",
+   "label": "Export",
+   "group": "Actions"
+  },
+  {
+   "name": "ui-link",
+   "label": "Link",
+   "group": "Actions"
+  },
+  {
+   "name": "ui-file",
+   "label": "File",
+   "group": "Actions"
+  },
+  {
+   "name": "ui-folder",
+   "label": "Folder",
+   "group": "Actions"
+  },
+  {
+   "name": "ui-folder-export",
+   "label": "Export folder",
+   "group": "Actions"
+  },
+  {
+   "name": "ui-inbox",
+   "label": "Unsorted",
+   "group": "Actions"
+  },
+  {
+   "name": "ui-bookmark",
+   "label": "Saved",
+   "group": "Actions"
+  },
+  {
+   "name": "ui-star",
+   "label": "Favorite",
+   "group": "Actions"
+  },
+  {
+   "name": "ui-tag",
+   "label": "Tag",
+   "group": "Actions"
+  },
+  {
+   "name": "ui-pin",
+   "label": "Pin",
+   "group": "Actions"
+  },
+  {
+   "name": "ui-backup",
+   "label": "Backup",
+   "group": "Actions"
+  },
+  {
+   "name": "ui-check",
+   "label": "Check",
+   "group": "Status"
+  },
+  {
+   "name": "ui-check-circle",
+   "label": "Success",
+   "group": "Status"
+  },
+  {
+   "name": "ui-info",
+   "label": "Info",
+   "group": "Status"
+  },
+  {
+   "name": "ui-alert",
+   "label": "Error",
+   "group": "Status"
+  },
+  {
+   "name": "ui-warning",
+   "label": "Warning",
+   "group": "Status"
+  },
+  {
+   "name": "ui-loading",
+   "label": "Loading",
+   "group": "Status"
+  },
+  {
+   "name": "ui-notify",
+   "label": "Notify",
+   "group": "Status"
+  },
+  {
+   "name": "ui-eye",
+   "label": "Watching · visible",
+   "group": "Status"
+  },
+  {
+   "name": "ui-incomplete",
+   "label": "Incomplete",
+   "group": "Status"
+  },
+  {
+   "name": "ui-backup-ok",
+   "label": "Backed up",
+   "group": "Status"
+  },
+  {
+   "name": "ui-physical",
+   "label": "Physical",
+   "group": "Battle & people"
+  },
+  {
+   "name": "ui-special",
+   "label": "Special",
+   "group": "Battle & people"
+  },
+  {
+   "name": "ui-status",
+   "label": "Status",
+   "group": "Battle & people"
+  },
+  {
+   "name": "ui-tera",
+   "label": "Tera",
+   "group": "Battle & people"
+  },
+  {
+   "name": "ui-timer",
+   "label": "Timer",
+   "group": "Battle & people"
+  },
+  {
+   "name": "ui-forfeit",
+   "label": "Forfeit",
+   "group": "Battle & people"
+  },
+  {
+   "name": "ui-switch",
+   "label": "Switch",
+   "group": "Battle & people"
+  },
+  {
+   "name": "ui-play",
+   "label": "Start · rejoin",
+   "group": "Battle & people"
+  },
+  {
+   "name": "ui-sprite",
+   "label": "Sprite placeholder",
+   "group": "Battle & people"
+  },
+  {
+   "name": "ui-team",
+   "label": "Team",
+   "group": "Battle & people",
+   "new": true
+  },
+  {
+   "name": "ui-dex",
+   "label": "Dex entry",
+   "group": "Battle & people"
+  },
+  {
+   "name": "ui-user",
+   "label": "User",
+   "group": "Battle & people"
+  },
+  {
+   "name": "ui-user-plus",
+   "label": "Challenge",
+   "group": "Battle & people"
+  },
+  {
+   "name": "ui-chat",
+   "label": "Chat",
+   "group": "Battle & people"
+  },
+  {
+   "name": "ui-globe",
+   "label": "Network",
+   "group": "Battle & people"
+  },
+  {
+   "name": "ui-general",
+   "label": "General",
+   "group": "Settings",
+   "new": true
+  },
+  {
+   "name": "ui-theme",
+   "label": "Appearance",
+   "group": "Settings"
+  },
+  {
+   "name": "ui-battle",
+   "label": "Battle",
+   "group": "Settings",
+   "new": true
+  },
+  {
+   "name": "ui-sound",
+   "label": "Sounds",
+   "group": "Settings"
+  },
+  {
+   "name": "ui-hotkeys",
+   "label": "Hotkeys",
+   "group": "Settings"
+  },
+  {
+   "name": "ui-plugin",
+   "label": "Plugin",
+   "group": "Settings"
+  },
+  {
+   "name": "ui-data",
+   "label": "Backups & data",
+   "group": "Settings"
+  },
+  {
+   "name": "media-play",
+   "label": "Play",
+   "group": "Playback"
+  },
+  {
+   "name": "media-pause",
+   "label": "Pause",
+   "group": "Playback"
+  },
+  {
+   "name": "media-first",
+   "label": "First turn",
+   "group": "Playback"
+  },
+  {
+   "name": "media-prev",
+   "label": "Previous turn",
+   "group": "Playback"
+  },
+  {
+   "name": "media-next",
+   "label": "Next turn",
+   "group": "Playback"
+  },
+  {
+   "name": "media-last",
+   "label": "Last turn",
+   "group": "Playback"
+  },
+  {
+   "name": "weather-sun",
+   "label": "Sun",
+   "group": "Field · Weather"
+  },
+  {
+   "name": "weather-rain",
+   "label": "Rain",
+   "group": "Field · Weather"
+  },
+  {
+   "name": "weather-sandstorm",
+   "label": "Sandstorm",
+   "group": "Field · Weather"
+  },
+  {
+   "name": "weather-snow",
+   "label": "Snow",
+   "group": "Field · Weather"
+  },
+  {
+   "name": "weather-hail",
+   "label": "Hail",
+   "group": "Field · Weather"
+  },
+  {
+   "name": "weather-none",
+   "label": "No weather",
+   "group": "Field · Weather"
+  },
+  {
+   "name": "terrain-electric",
+   "label": "Electric",
+   "group": "Field · Terrain"
+  },
+  {
+   "name": "terrain-grassy",
+   "label": "Grassy",
+   "group": "Field · Terrain"
+  },
+  {
+   "name": "terrain-psychic",
+   "label": "Psychic",
+   "group": "Field · Terrain"
+  },
+  {
+   "name": "terrain-misty",
+   "label": "Misty",
+   "group": "Field · Terrain"
+  },
+  {
+   "name": "terrain-none",
+   "label": "No terrain",
+   "group": "Field · Terrain"
+  },
+  {
+   "name": "hazard-stealth-rock",
+   "label": "Stealth Rock",
+   "group": "Field · Hazards"
+  },
+  {
+   "name": "hazard-spikes",
+   "label": "Spikes",
+   "group": "Field · Hazards"
+  },
+  {
+   "name": "hazard-toxic-spikes",
+   "label": "Toxic Spikes",
+   "group": "Field · Hazards"
+  },
+  {
+   "name": "hazard-sticky-web",
+   "label": "Sticky Web",
+   "group": "Field · Hazards"
+  },
+  {
+   "name": "screen-reflect",
+   "label": "Reflect",
+   "group": "Field · Screens"
+  },
+  {
+   "name": "screen-light-screen",
+   "label": "Light Screen",
+   "group": "Field · Screens"
+  },
+  {
+   "name": "screen-aurora-veil",
+   "label": "Aurora Veil",
+   "group": "Field · Screens"
+  }
+ ]
+}
