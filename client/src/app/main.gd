@@ -394,8 +394,9 @@ func _on_room_left(room_id: String) -> void:
 	# The server dropped the room (it expired): keep the tab, shown as over, until closed.
 	if _screens.has(id):
 		var battle: BattleState = (_screens[id] as BattleScreen).battle
-		if battle != null:
+		if battle != null and not battle.ended:
 			battle.ended = true
+			battle.expired = true
 			battle.awaiting_choice = false
 			tabs.update_tab(id, battle_tab_spec(battle))
 
@@ -425,7 +426,7 @@ static func battle_tab_spec(battle: BattleState) -> Dictionary:
 	if battle.ended:
 		var me := battle.side(mine).player_name
 		if battle.winner.is_empty():
-			state = _t("tie") if not battle.my_side.is_empty() else _t("ended")
+			state = _t("tie") if not battle.my_side.is_empty() and not battle.expired else _t("ended")
 		elif battle.my_side.is_empty():
 			state = _t("ended")
 		else:

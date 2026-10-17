@@ -134,6 +134,7 @@ func _on_message(msg: PSMessage) -> void:
 			if _restoring.has(room_id) and msg.arg(0) == "nonexistent" and battles.has(room_id):
 				# Anything still showing it (battle screen, tab) sees it as over.
 				(battles[room_id] as BattleState).ended = true
+				(battles[room_id] as BattleState).expired = true
 				battles.erase(room_id)
 				EventBus.room_left.emit(room_id)
 			_restoring.erase(room_id)

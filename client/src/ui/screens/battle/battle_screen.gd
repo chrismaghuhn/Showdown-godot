@@ -442,6 +442,10 @@ func _on_battle_updated(updated: BattleState, msg: PSMessage) -> void:
 	_builder.push(msg, battle)
 	if msg.type == "turn" or msg.type == "upkeep":
 		_waiting = false
+	elif msg.type == "sentchoice":
+		# Rejoined after the choice went out: show it as chosen, not the buttons again.
+		_chosen = msg.arg(0)
+		_waiting = true
 	_queue_refresh()
 
 

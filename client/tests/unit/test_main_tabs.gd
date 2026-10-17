@@ -115,7 +115,23 @@ func test_attention_after_rejoin_and_rejected_choice() -> void:
 
 
 func test_dismissed_sign_in_drops_the_pending_search() -> void:
+	var main := _main()
+	var overlay: ConnectionOverlay = main.connection_overlay
+	overlay.preview({"state": Connection.State.CONNECTED, "session_up": true, "signed_in": false,
+		"signing_in": false, "reconnecting": false, "server_host": "sim3.psim.us"}, {})
+	assert_eq(overlay.current_card(), &"sign_in", "Battle! while signed out asks for a name")
 	Rooms._pending_search = "gen9randombattle"
-	assert_true(Rooms.is_searching(), "waiting for a name")
-	Rooms.cancel_search()
+	assert_true(Rooms.is_searching(), "the search waits for the name")
+	overlay._sign_in.dismissed.emit()
 	assert_true(not Rooms.is_searching(), "Not now: no search later")
+	main.free()
+
+
+func test_a_battle_you_played_that_expired_reads_ended() -> void:
+	var main := _main()
+	_feed(">battle-gen9randombattle-71\n|init|battle\n|player|p1|Ash|1|\n|player|p2|Misty|2|\n|turn|5")
+	Rooms.get_battle("battle-gen9randombattle-71").my_side = "p1"
+	_feed(">battle-gen9randombattle-71\n|deinit")
+	var battle := (main._screens[_tab("battle-gen9randombattle-71")] as BattleScreen).battle
+	assert_eq(main.battle_tab_spec(battle)["meta"], "Random · ended", "not a tie")
+	_cleanup(main, ["battle-gen9randombattle-71"])
