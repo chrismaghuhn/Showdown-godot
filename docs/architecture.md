@@ -68,7 +68,7 @@ scheduled). States are only ever appended, plugins see the number.
   the banner (a connection that worked dropped). `--app-state=<id>` shows each state with
   sample data for screenshots.
 - **Tests:** `tools/e2e_reconnect.sh` cuts and blackholes a bot's connection mid-battle
-  through `tools/net_fault_proxy.py`; `tools/e2e_sign_in.sh` drives the sign-in card.
+  through `tools/net_fault_proxy.py`; `tools/e2e_ui.sh` drives the sign-in card and the app shell.
 
 A plugin whose scripts raise an engine error is paused (`Plugins.pause()`,
 `EventBus.plugin_paused`) and shown as "<name> paused" with "Reload plugin" / "Disable".
@@ -77,9 +77,11 @@ A plugin whose scripts raise an engine error is paused (`Plugins.pause()`,
 
 | Feature | Location |
 |---|---|
-| Battle screen | done (layout B "Desktop"): `ui/screens/battle/`, components in `ui/components/` (stage, HUD, log, slots, tooltips) |
+| App shell, start screen | done: `app/main.gd` (header, tabs, keys), `ui/screens/start/`, header parts in `ui/components/` (`AppTabs`, `CommandButton`, `NotificationBell`, `AccountButton`) |
+| Battle screen | done (layout B "Desktop"): `ui/screens/battle/`, one instance per battle tab (`bind(room_id)`), components in `ui/components/` (stage, HUD, log, slots, tooltips) |
 | Battle layout A "Familiar", doubles | `ui/screens/battle/` as alternative layout, `StageLayout.DOUBLES` is ready |
-| Lobby, chat rooms | `ui/screens/lobby/`, chat model in `model/` if it needs state |
+| Lobby, chat rooms | the lobby replaces the interim `ui/screens/home/` (Home tab; `FormatList` and `Rooms.formats` are ready), chat model in `model/` if it needs state |
+| Command palette | replaces `CommandButton`'s "Go to" menu (#8) |
 | Teambuilder | `model/team/` (team format, import/export, pure + tested) and `ui/screens/teambuilder/` |
 | Pokédex / move data | done: `data/` + `GameData`, see [data-sources.md](data-sources.md) |
 | Move/item descriptions, icons | extend `GameData.DATA_FILES` / sprite helpers, parse in `data/` |
@@ -95,4 +97,5 @@ A plugin whose scripts raise an engine error is paused (`Plugins.pause()`,
 - Autoloads are internal. Plugins only see `PluginAPI`.
 - Never commit Nintendo/Game Freak assets (sprites, sounds). Load them at runtime from the
   Showdown CDN and cache them in `user://`.
-- `ui/screens/dev_console/` is a developer tool, not the product UI.
+- `ui/screens/dev_console/` is a developer tool, not the product UI: only with `--dev`, the
+  "Developer mode" setting or `--screen=dev-console`.

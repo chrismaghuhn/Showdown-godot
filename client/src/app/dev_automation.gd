@@ -6,6 +6,8 @@ extends Node
 ##       --search=gen9randombattle --quit-after-battle --timeout=300
 ##   godot --path client --headless -- --check-data [--data-url=...] [--sprite-url=...]
 ##   godot --path client -- --screen=theme-gallery --theme=classic-light --screenshot=/tmp/shot.png
+##       (--screen: start, home, teambuilder, watch, settings, battle, dev-console, theme-gallery;
+##        --dev turns on developer mode: console and theme gallery in Ctrl+K)
 ##   ... --notify-test   (sends the settings' test notification: toast, sound, desktop)
 ##   ... --server=local --search=gen9randombattle --screenshot=/tmp/battle.png --screenshot-turn=3
 ##       (screenshot once the battle reaches that turn, then keep playing)
@@ -13,7 +15,7 @@ extends Node
 ## (default 1280x800, scaled by --ui-scale), independent of the window manager.
 ##   ... --app-state=<id> --screenshot=/tmp/state.png   (shows one app state with sample data:
 ##       connecting, connecting-retry, servers, sign-in, sign-in-password, sign-in-error,
-##       reconnecting, reconnect-failed, gave-up, loading)
+##       reconnecting, reconnect-failed, gave-up, loading, start-battle)
 ##   ... --server=local --server-url=ws://127.0.0.1:8001/showdown/websocket   (through a proxy,
 ##       see tools/net_fault_proxy.py and tools/e2e_reconnect.sh)
 ##   ... --fault-proxy=8002 --faults=3:cut,8:blackhole [--fault-hold=8]
@@ -21,7 +23,7 @@ extends Node
 ##       blackhole is lifted with "normal" after --fault-hold seconds)
 
 const APP_STATES := ["connecting", "connecting-retry", "servers", "sign-in", "sign-in-password",
-	"sign-in-error", "reconnecting", "reconnect-failed", "gave-up", "loading"]
+	"sign-in-error", "reconnecting", "reconnect-failed", "gave-up", "loading", "start-battle"]
 
 var _capture: SubViewport
 
@@ -141,6 +143,19 @@ func _preview_app_state(id: String) -> void:
 		"gave-up":
 			overlay.preview(base.merged({"state": Connection.State.DISCONNECTED, "attempt": 5, "gave_up": true,
 				"last_error": "No answer from sim3.psim.us"}, true), {})
+		"start-battle":
+			# The start screen's "Battle in progress" card with a sample battle (not in Rooms).
+			var sample := BattleState.new("battle-gen9ou-1")
+			for line in ["|player|p1|ironquill|1|", "|player|p2|Mirebloom|2|", "|tier|[Gen 9] OU",
+					"|switch|p1a: Tremor|Great Tusk, L100|52/100", "|switch|p2a: Gholdengo|Gholdengo, L100|41/100",
+					"|turn|7", "|inactive|Time left: 112 sec this turn | 300 sec total"]:
+				sample.apply(PSParser.parse_frame(line)[0])
+			sample.my_side = "p1"
+			sample.awaiting_choice = true
+			var start: Node = app.get("_screens").get(&"start")
+			if start != null:
+				start.get("_running").show_battle(sample)
+				start.get("_running").visible = true
 		"loading":
 			app.data_panel.preview({"fraction": 0.42, "bytes": 1840000, "files": [
 				{"label": "Pokédex", "state": "done"}, {"label": "Moves", "state": "done"},

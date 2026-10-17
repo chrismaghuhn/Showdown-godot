@@ -27,8 +27,10 @@ var timer_total_seconds := -1
 ## Latest |request| payload (what we may choose this turn).
 var request := {}
 var ended := false
-## Rejoined after a reconnect (the log was replayed from the start).
+## Rejoined after a reconnect or restart (the log was replayed from the start).
 var restored := false
+## The server asked for a choice that hasn't been sent yet ("your move").
+var awaiting_choice := false
 var winner := ""
 
 
@@ -149,9 +151,11 @@ func apply(msg: PSMessage) -> void:
 			timer_total_seconds = -1
 		"win":
 			ended = true
+			awaiting_choice = false
 			winner = msg.arg(0)
 		"tie":
 			ended = true
+			awaiting_choice = false
 	_reveal_from_kwargs(msg)
 
 
@@ -192,6 +196,8 @@ func turns_left(start_turn: int, duration := 5) -> int:
 ## Applies a parsed |request| JSON. Our own side gets exact HP and move lists from it.
 func apply_request(req: Dictionary) -> void:
 	request = req
+	awaiting_choice = not ended and not req.get("wait", false) \
+		and (req.has("active") or req.has("forceSwitch") or req.get("teamPreview", false))
 	var side_data: Variant = req.get("side")
 	if not side_data is Dictionary:
 		return

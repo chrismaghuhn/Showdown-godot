@@ -1,5 +1,5 @@
 extends Node
-## End-to-end check of the sign-in UI against the local server (tools/e2e_sign_in.sh, run via
+## End-to-end check of the sign-in UI against the local server (tools/e2e_ui.sh, run via
 ## tests/e2e/run.gd):
 ## connect without a name -> the sign-in card opens -> sign in -> sign out -> try a name
 ## another connection holds -> inline error. Drives the real cards, prints [e2e] lines and
@@ -29,7 +29,7 @@ func _process(delta: float) -> void:
 			_step = 1
 		1:
 			if _overlay.current_card() == &"sign_in" and _card() != null:
-				_check(ConnectionFlow.status_label(Connection.status())["text"] == "Sign in", "header offers Sign in")
+				_check(AccountButton.describe(Connection.status(), "")["sub"] == "Sign in", "the account offers Sign in")
 				_submit(_name)
 				_check(_card()._submit.text == "Signing in…", "the card shows that it's busy")
 				_step = 2
@@ -37,7 +37,7 @@ func _process(delta: float) -> void:
 			if Connection.signed_in:
 				_check(Connection.username == _name, "signed in as " + _name)
 				_check(_overlay.current_card() == &"", "the card closed")
-				_check(ConnectionFlow.status_label(Connection.status())["text"] == _name, "header shows the name")
+				_check(AccountButton.describe(Connection.status(), "")["name"] == _name, "the account shows the name")
 				Connection.sign_out()
 				_step = 3
 		3:

@@ -76,6 +76,7 @@ func _build() -> void:
 	_build_toggle_icons()
 	_build_battle()
 	_build_app_states()
+	_build_shell()
 
 
 # --- Helpers ----------------------------------------------------------------------
@@ -512,7 +513,7 @@ func _build_battle_layout() -> void:
 	var sm := t.px("radius.sm")
 	var panels := {
 		# 40px app header and 36px dock headers: a bottom border only.
-		"AppHeader": _bottom_border_box(c("color.surface.panel"), 12, 4),
+		"AppHeader": _bottom_border_box(c("color.surface.panel"), 12, 0),
 		"DockHeader": _bottom_border_box(Color.TRANSPARENT, 8, 6),
 		"BattleHeader": _bottom_border_box(Color.TRANSPARENT, 8, 4),
 		"HudCard": _shadow(_box(c("color.surface.panel"), c("color.border.default"), bw, lg, t.px("space.md"), t.px("space.sm")), "sm"),
@@ -627,6 +628,99 @@ func _build_app_states() -> void:
 	theme.set_color("font_color", "ProgressBar", c("color.text.primary"))
 	theme.set_font("font", "ProgressBar", _fonts["mono_semi"])
 	theme.set_font_size("font_size", "ProgressBar", t.px("font.size.sm"))
+
+
+## App header and start screen (design: header on every board, "Start screen · only at launch").
+func _build_shell() -> void:
+	var clear := Color.TRANSPARENT
+	var bw := _bw
+	var md := t.px("radius.md")
+	var lg := t.px("radius.lg")
+	var full := t.px("radius.full")
+	var primary_fg := c("color.text.primary")
+
+	# .c-tab: 40px tabs, selected = 2px accent line at the bottom.
+	_variation("AppTab", "Button")
+	var tab_selected := _box(clear, c("color.accent.default"), 0, 0, 12, 0)
+	tab_selected.border_width_bottom = 2
+	var tab_hover := _box(c("color.surface.hover"), clear, 0, 0, 12, 0)
+	for state in ["normal", "disabled"]:
+		theme.set_stylebox(state, "AppTab", _box(clear, clear, 0, 0, 12, 0))
+	theme.set_stylebox("hover", "AppTab", tab_hover)
+	theme.set_stylebox("pressed", "AppTab", tab_selected)
+	theme.set_stylebox("hover_pressed", "AppTab", tab_selected)
+	theme.set_stylebox("focus", "AppTab", _focus(0))
+
+	# .c-cmd: "Search or run a command" field-like button in the header.
+	_variation("CommandButton", "Button")
+	_button("CommandButton", {
+		"normal": [c("color.surface.sunken"), c("color.border.default")],
+		"hover": [c("color.surface.sunken"), c("color.border.strong")],
+		"pressed": [c("color.surface.sunken"), c("color.border.strong")],
+		"disabled": [c("color.surface.sunken"), c("color.border.subtle")],
+	}, [c("color.text.muted"), c("color.text.secondary"), c("color.text.disabled")], 8, 0, "ui", "font.size.sm")
+
+	# Flat header buttons with content rows (account, connection pill).
+	_variation("HeaderButton", "Button")
+	_button("HeaderButton", {
+		"normal": [clear, clear],
+		"hover": [c("color.surface.hover"), clear],
+		"pressed": [c("color.surface.pressed"), clear],
+		"disabled": [clear, clear],
+	}, [primary_fg, primary_fg, c("color.text.disabled")], 4, 0)
+	_variation("StatusPill", "Button")
+	var pill := {}
+	for state in ["normal", "hover", "pressed", "disabled"]:
+		var bg := c("color.surface.hover") if state == "hover" else clear
+		pill[state] = [bg, c("color.border.default")]
+	_button("StatusPill", pill, [c("color.text.secondary"), primary_fg, c("color.text.disabled")], 8, 0, "ui_semi", "font.size.sm", "radius.full")
+
+	# .st-item: start menu entries (icon box, title, description, key).
+	_variation("StartMenuItem", "Button")
+	_button("StartMenuItem", {
+		"normal": [clear, clear],
+		"hover": [c("color.surface.hover"), c("color.border.default")],
+		"pressed": [c("color.surface.pressed"), c("color.border.default")],
+		"disabled": [clear, clear],
+	}, [primary_fg, primary_fg, c("color.text.disabled")], 12, 12, "ui_bold", "font.size.lg", "radius.lg")
+
+	var panels := {
+		"StartIconPanel": _box(c("color.surface.raised"), c("color.border.default"), bw, lg, 0, 0),
+		"AvatarPanel": _box(c("color.accent.subtle"), clear, 0, full, 0, 0),
+		# "Battle in progress" on the start screen: raised, outlined in the accent color.
+		"AccentCard": _box(c("color.surface.raised"), c("color.accent.default"), bw, lg, t.px("space.lg"), t.px("space.lg")),
+		"AccentPill": _box(c("color.accent.subtle"), clear, 0, full, t.px("space.sm"), 2),
+		"StartFooter": _box(clear, c("color.border.subtle"), 0, 0, t.px("space.xl"), 0),
+	}
+	(panels["StartFooter"] as StyleBoxFlat).border_width_top = 1
+	for variation: String in panels:
+		_variation(variation, "PanelContainer")
+		theme.set_stylebox("panel", variation, panels[variation])
+
+	var labels := {
+		"TabLabel": [c("color.text.secondary"), "ui_semi", "font.size.md"],
+		"TabMetaLabel": [c("color.text.muted"), "mono", "font.size.xs"],
+		"AvatarLabel": [c("color.accent.text"), "ui_bold", "font.size.xs"],
+		"AccentPillLabel": [c("color.accent.text"), "ui_semi", "font.size.sm"],
+		"StartItemTitleLabel": [primary_fg, "ui_bold", "font.size.lg"],
+		# Text inside a primary (accent) button that is built from a content row.
+		"OnAccentLabel": [c("color.text.on-accent"), "ui_semi", "font.size.md"],
+	}
+	for variation: String in labels:
+		var spec: Array = labels[variation]
+		_variation(variation, "Label")
+		_label_style(variation, spec[0], spec[1], spec[2])
+	for item in ["font_color", "font_hover_color", "font_focus_color", "font_hover_pressed_color"]:
+		theme.set_color(item, "LinkButton", primary_fg)
+	theme.set_color("font_pressed_color", "LinkButton", c("color.text.secondary"))
+	theme.set_color("font_disabled_color", "LinkButton", c("color.text.disabled"))
+	theme.set_font("font", "LinkButton", _fonts["ui_semi"])
+	theme.set_font_size("font_size", "LinkButton", t.px("font.size.md"))
+	theme.set_stylebox("focus", "LinkButton", _focus(t.px("radius.sm")))
+	# .c-fmt chip ("Start", "[Gen 9] OU", "Client 0.1.0") and a key hint on accent buttons.
+	var sm := t.px("radius.sm")
+	_badge("FormatChip", c("color.surface.sunken"), c("color.text.secondary"), c("color.border.default"), "ui_semi", "font.size.xs", sm)
+	_badge("KbdOnAccentLabel", clear, c("color.text.on-accent"), c("color.text.on-accent"), "mono_semi", "font.size.xs", sm)
 
 
 func _bottom_border_box(bg: Color, pad_h: int, pad_v: int) -> StyleBoxFlat:
