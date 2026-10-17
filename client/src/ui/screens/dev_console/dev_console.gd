@@ -39,6 +39,7 @@ func _ready() -> void:
 	EventBus.battle_started.connect(_on_battle_started)
 	EventBus.battle_updated.connect(_on_battle_updated)
 	EventBus.battle_request.connect(_on_battle_request)
+	EventBus.room_left.connect(_on_room_left)
 	EventBus.data_loaded.connect(_on_data_loaded)
 	EventBus.data_failed.connect(func(r: String) -> void: _print_line(tr("Game data: %s") % r, COLOR_ERROR))
 	if GameData.dex != null:
@@ -254,6 +255,15 @@ func _on_battle_updated(battle: BattleState, msg: PSMessage) -> void:
 	_update_battle_info(battle)
 	if battle.ended:
 		_clear_actions()
+
+
+## Only leaving the room ends "the current battle": an ended battle's room still takes chat
+## (and /savereplay) until it is left. Afterwards the command box sends globally again.
+func _on_room_left(room_id: String) -> void:
+	if room_id != _current_battle:
+		return
+	_current_battle = ""
+	_clear_actions()
 
 
 func _update_battle_info(battle: BattleState) -> void:
