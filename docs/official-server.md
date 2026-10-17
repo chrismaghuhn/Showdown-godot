@@ -57,23 +57,36 @@ and every download (data, sprites, ratings, news).
 - **Errors:** answers start with `]`, errors arrive as `{"actionerror": …}`, and a non-200 answer
   (e.g. a 502 page) is never taken as an assertion.
 
-Not checked on the live login server yet: that is the manual test below.
+Also checked on the live login server: steps 2–5 of the manual test log below.
 
-## Manual test log (to do before the release)
+## Manual test log
 
-Done by a person, with the release build, on the official server. No bots on the main server.
+Done by a person on the official server. No bots on the main server.
+
+Run on 2026-10-17 by the project lead on Linux, with the release build 0.1.0-dev-bb61a8d
+(including the Random Battle) and from source. Which other steps ran on which wasn't noted.
 
 | # | Step | Expected | Result |
 |---|---|---|---|
-| 1 | Start the app, Connect → official server | connects, "Online · sim3" | |
-| 2 | Choose an unregistered name | signed in under that name | |
-| 3 | Sign out, choose your registered name, enter the password | password step, then signed in | |
-| 4 | Wrong password once | inline "Wrong password." | |
-| 5 | "Stay signed in", quit, start again | signed in without a password | |
-| 6 | Quick battle: [Gen 9] Random Battle | battle tab opens, moves work to the end | |
-| 7 | Challenge a friend (and get challenged) | send, accept, decline, cancel | |
-| 8 | Pull the network cable mid-battle, plug it back in | banner, reconnect, battle restored | |
-| 9 | Lobby | your ratings appear after a rated battle | |
+| 1 | Start the app, Connect → official server | connects, "Online · sim3" | passed |
+| 2 | Choose an unregistered name | signed in under that name | passed |
+| 3 | Sign out, choose your registered name, enter the password | password step, then signed in | passed |
+| 4 | Wrong password once | inline "Wrong password." | passed |
+| 5 | "Stay signed in", quit, start again | signed in without a password | passed |
+| 6 | Quick battle: [Gen 9] Random Battle | battle tab opens, moves work to the end | passed (won) |
+| 7 | Challenge a friend (and get challenged) | send, accept, decline, cancel | passed |
+| 8 | Pull the network cable mid-battle, plug it back in | banner, reconnect, battle restored | passed |
+| 9 | Lobby | your ratings appear after a rated battle | passed |
+
+Seen along the way:
+
+- The release build logs Godot errors ("Attempt to disconnect a nonexistent connection …
+  'focus_entered'") whenever a tooltip or popup closes. A harmless Godot bug
+  (godotengine/godot#87626) that only shows in release builds; see #82.
+- On a first launch, the format picker showed the raw id (`gen9randombattle`) until the
+  server's list arrived. #81 fixes it.
+
+Repeat the log with the release candidate before tagging the release (#25).
 
 ## Contacting the Showdown team
 
