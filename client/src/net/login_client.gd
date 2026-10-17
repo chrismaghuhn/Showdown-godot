@@ -93,7 +93,7 @@ func _start(kind: Kind, url: String, method: HTTPClient.Method, body: String) ->
 		failed.emit(tr("Could not start the sign-in request (error %d)") % err)
 
 
-func _on_request_completed(result: int, _code: int, headers: PackedStringArray, body: PackedByteArray) -> void:
+func _on_request_completed(result: int, code: int, headers: PackedStringArray, body: PackedByteArray) -> void:
 	var kind := _kind
 	_kind = Kind.NONE
 	if result == HTTPRequest.RESULT_SUCCESS:
@@ -106,6 +106,11 @@ func _on_request_completed(result: int, _code: int, headers: PackedStringArray, 
 		failed.emit(tr("The login server is not reachable (result %d)") % result)
 		return
 	var text := body.get_string_from_utf8()
+	# An error page (502, 503, ...) is never an assertion (#50).
+	var http_problem := http_error(code, text)
+	if not http_problem.is_empty():
+		failed.emit(http_problem)
+		return
 	var parsed: Dictionary
 	match kind:
 		Kind.LOGIN:
@@ -162,7 +167,21 @@ static func parse_assertion(text: String) -> Dictionary:
 		if data is Dictionary and data.has("actionerror"):
 			return {"error": str(data["actionerror"])}
 		return {"error": "Unexpected login server response"}
+	# Assertions are comma-separated fields in one line; anything else (an HTML page) isn't.
+	if text.begins_with("<") or text.contains("\n") or text.contains(" "):
+		return {"error": "Unexpected login server response"}
 	return {"assertion": text}
+
+
+## "" for HTTP 200, else the error to show: the server's actionerror if it sent one, or
+## "The login server returned HTTP 502".
+static func http_error(code: int, text: String) -> String:
+	if code == 200:
+		return ""
+	var data: Variant = _parse_json(strip_prefix(text))
+	if data is Dictionary and data.has("actionerror"):
+		return str(data["actionerror"])
+	return "The login server returned HTTP %d" % code
 
 
 ## The "login" action: {"actionsuccess", "assertion", "curuser"} or {"actionerror"}.

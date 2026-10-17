@@ -62,3 +62,13 @@ func test_session_store_round_trip() -> void:
 
 func test_user_agent_names_the_client() -> void:
 	assert_true(LoginClient.user_agent().begins_with("User-Agent: ShowdownDesktop/"), "user agent")
+
+
+func test_http_errors_are_not_assertions() -> void:
+	assert_eq(LoginClient.http_error(200, "abc,alice"), "", "200 is fine")
+	assert_eq(LoginClient.http_error(502, "<!DOCTYPE html><html>Bad Gateway</html>"),
+		"The login server returned HTTP 502", "error page (#50)")
+	assert_eq(LoginClient.http_error(500, ']{"actionerror":"Internal Server Error"}'),
+		"Internal Server Error", "the server's own message")
+	assert_eq(LoginClient.parse_assertion("<!DOCTYPE html>\n<html>"),
+		{"error": "Unexpected login server response"}, "HTML is never an assertion")
