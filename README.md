@@ -88,6 +88,10 @@ tools/             dev scripts (server, client, tests, export)
 .github/           CI workflows and the setup-godot action
 ```
 
+Battle screen: layout B "Desktop" from the design system — battlefield with sprites on the
+spec'd stage, HUD cards with animated HP, field conditions, moves and switches from the server's
+request (hotkeys 1–4, Shift+1–6, Esc), tera, timer, battle log, chat and the plugin sidebar.
+
 Themes: three built-in themes (Midnight Dark, Classic Light, High Contrast), community themes as
 token-only JSON files, runtime switching and UI scaling. Open the **theme gallery** from the dev
 console or with `tools/run_client.sh --screen=theme-gallery`.

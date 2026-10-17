@@ -15,7 +15,15 @@ var my_side := ""
 ## "p1" -> BattleSide
 var sides := {}
 var weather := ""
+## Turn the current weather started (for "turns left").
+var weather_turn := 0
 var field_conditions := PackedStringArray()
+## Field condition -> turn it started.
+var field_turns := {}
+## Battle timer (from |inactive|): seconds left this turn and in total; -1 = unknown.
+var timer_on := false
+var timer_turn_seconds := -1
+var timer_total_seconds := -1
 ## Latest |request| payload (what we may choose this turn).
 var request := {}
 var ended := false
@@ -66,6 +74,8 @@ func apply(msg: PSMessage) -> void:
 			format = msg.arg(0)
 		"turn":
 			turn = msg.arg(0).to_int()
+		"move":
+			get_pokemon(msg.arg(0)).reveal_move(msg.arg(1))
 		"switch", "drag", "replace":
 			var ref := parse_ident(msg.arg(0))
 			var s := side(ref["side"])
@@ -99,24 +109,82 @@ func apply(msg: PSMessage) -> void:
 				for mon: BattlePokemon in s.pokemon.values():
 					mon.boosts.clear()
 		"-weather":
-			weather = "" if msg.arg(0) == "none" else msg.arg(0)
+			var new_weather := "" if msg.arg(0) == "none" else msg.arg(0)
+			if new_weather != weather and not msg.kwargs.has("upkeep"):
+				weather_turn = turn
+			weather = new_weather
 		"-fieldstart":
 			var effect := effect_name(msg.arg(0))
 			if not effect in field_conditions:
 				field_conditions.append(effect)
+			field_turns[effect] = turn
 		"-fieldend":
 			var index := field_conditions.find(effect_name(msg.arg(0)))
 			if index != -1:
 				field_conditions.remove_at(index)
+			field_turns.erase(effect_name(msg.arg(0)))
 		"-sidestart":
-			side(msg.arg(0).substr(0, 2)).conditions[effect_name(msg.arg(1))] = true
+			side(msg.arg(0).substr(0, 2)).add_condition(effect_name(msg.arg(1)), turn)
 		"-sideend":
 			side(msg.arg(0).substr(0, 2)).conditions.erase(effect_name(msg.arg(1)))
+		"-item":
+			get_pokemon(msg.arg(0)).item = msg.arg(1)
+		"-enditem":
+			get_pokemon(msg.arg(0)).item = ""
+		"-ability":
+			get_pokemon(msg.arg(0)).ability = msg.arg(1)
+		"-terastallize":
+			get_pokemon(msg.arg(0)).tera_type = msg.arg(1)
+		"-start":
+			get_pokemon(msg.arg(0)).volatiles[effect_name(msg.arg(1))] = turn
+		"-end":
+			get_pokemon(msg.arg(0)).volatiles.erase(effect_name(msg.arg(1)))
+		"inactive":
+			_apply_timer(msg.arg(0))
+		"inactiveoff":
+			timer_on = false
+			timer_turn_seconds = -1
+			timer_total_seconds = -1
 		"win":
 			ended = true
 			winner = msg.arg(0)
 		"tie":
 			ended = true
+	_reveal_from_kwargs(msg)
+
+
+## "[from] item: Leftovers" / "[from] ability: Intimidate" reveal the holder's item or ability
+## (the holder is "[of]" if given, else the message's Pokémon).
+func _reveal_from_kwargs(msg: PSMessage) -> void:
+	var source := str(msg.kwargs.get("from", ""))
+	if not (source.begins_with("item: ") or source.begins_with("ability: ")):
+		return
+	var holder_ident := str(msg.kwargs.get("of", msg.arg(0)))
+	if not holder_ident.contains(": "):
+		return
+	var holder := get_pokemon(holder_ident)
+	if source.begins_with("item: "):
+		holder.item = source.substr(6)
+	else:
+		holder.ability = source.substr(9)
+
+
+## "Time left: 150 sec this turn | 240 sec total" (only sent to the player it concerns).
+func _apply_timer(text: String) -> void:
+	var regex := RegEx.create_from_string("Time left: (\\d+) sec this turn \\| (\\d+) sec total")
+	var found := regex.search(text)
+	if found != null:
+		timer_on = true
+		timer_turn_seconds = found.get_string(1).to_int()
+		timer_total_seconds = found.get_string(2).to_int()
+	elif text.contains("timer is ON") or text.contains("timer is now ON"):
+		timer_on = true
+
+
+## Turns left for a 5-turn effect that started in `start_turn` (estimate: 5 turns, items
+## like Light Clay or Damp Rock extend it to 8 and are not detected).
+func turns_left(start_turn: int, duration := 5) -> int:
+	return maxi(duration - (turn - start_turn), 0)
 
 
 ## Applies a parsed |request| JSON. Our own side gets exact HP and move lists from it.
@@ -135,6 +203,12 @@ func apply_request(req: Dictionary) -> void:
 		mon.apply_details(str(entry.get("details", "")))
 		mon.apply_condition(str(entry.get("condition", "")))
 		mon.moves = PackedStringArray(entry.get("moves", []))
+		mon.stats = entry.get("stats", {})
+		mon.item = str(entry.get("item", mon.item))
+		mon.ability = str(entry.get("ability", entry.get("baseAbility", mon.ability)))
+		mon.tera_option = str(entry.get("teraType", ""))
+		if not str(entry.get("terastallized", "")).is_empty():
+			mon.tera_type = str(entry["terastallized"])
 
 
 ## "move: Stealth Rock" -> "Stealth Rock"

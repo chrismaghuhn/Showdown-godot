@@ -3,7 +3,8 @@ extends Node
 ##
 ## Themes:  res://assets/themes/*.sdtheme.json (built in) and user://themes/*.sdtheme.json
 ##          (community). Settings: section "appearance", keys "theme" and "ui_scale".
-## Command line: --theme=<id> and --ui-scale=<0.75-1.5> override the settings for one run.
+## Command line: --theme=<id>, --ui-scale=<0.75-1.5> and --reduce-motion override the settings
+## for one run.
 
 const BUILTIN_DIR := "res://assets/themes"
 const USER_DIR := "user://themes"
@@ -19,6 +20,8 @@ var tokens: ThemeTokens
 var theme: Theme
 var theme_id := ""
 var ui_scale := 1.0
+## Design rule: slides, scales and moves become instant, fades are capped at 80 ms, HP bars jump.
+var reduce_motion := false
 
 
 func _ready() -> void:
@@ -29,6 +32,7 @@ func _ready() -> void:
 		apply(DEFAULT_THEME, false)
 	var scale_text := AppConfig.cli("ui-scale", str(AppConfig.get_setting("appearance", "ui_scale", 1.0)))
 	set_ui_scale(scale_text.to_float() if scale_text.is_valid_float() else 1.0, false)
+	reduce_motion = AppConfig.has_cli("reduce-motion") or bool(AppConfig.get_setting("appearance", "reduce_motion", false))
 	get_tree().root.size_changed.connect(_apply_scale)
 
 
@@ -94,8 +98,35 @@ func set_ui_scale(value: float, save := true) -> void:
 	EventBus.ui_scale_changed.emit(ui_scale)
 
 
+func set_reduce_motion(enabled: bool) -> void:
+	reduce_motion = enabled
+	AppConfig.set_setting("appearance", "reduce_motion", enabled)
+
+
 func color(key: String) -> Color:
 	return tokens.color(key) if tokens != null else Color.MAGENTA
+
+
+## Duration in seconds for a motion token ("motion.fast", "motion.base", ...); 0 with reduce motion.
+func motion(key: String) -> float:
+	if reduce_motion or tokens == null:
+		return 0.0
+	return tokens.num(key)
+
+
+## Duration for a fade: like motion(), but reduce motion keeps fades, capped at 80 ms.
+func fade(key: String) -> float:
+	if tokens == null:
+		return 0.0
+	return minf(tokens.num(key), 0.08) if reduce_motion else tokens.num(key)
+
+
+## HP drain duration: base + per percent changed, capped (design: 200 + 6 ms × Δ%, max 800 ms).
+func hp_duration(delta_percent: float) -> float:
+	if reduce_motion or tokens == null:
+		return 0.0
+	return minf(tokens.num("motion.hp.base") + tokens.num("motion.hp.per-percent") * absf(delta_percent),
+		tokens.num("motion.hp.max"))
 
 
 func _apply_scale() -> void:

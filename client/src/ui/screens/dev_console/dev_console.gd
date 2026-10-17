@@ -23,7 +23,6 @@ var _sprite_row: HBoxContainer
 var _sprites := {}
 var _sprite_keys := {}
 var _actions: VBoxContainer
-var _plugin_slot: VBoxContainer
 var _command_edit: LineEdit
 var _current_battle := ""
 
@@ -40,13 +39,10 @@ func _ready() -> void:
 	EventBus.battle_started.connect(_on_battle_started)
 	EventBus.battle_updated.connect(_on_battle_updated)
 	EventBus.battle_request.connect(_on_battle_request)
-	EventBus.plugin_panel_added.connect(_on_plugin_panel_added)
 	EventBus.data_loaded.connect(_on_data_loaded)
 	EventBus.data_failed.connect(func(r: String) -> void: _print_line(tr("Game data: %s") % r, COLOR_ERROR))
 	if GameData.dex != null:
 		_on_data_loaded(GameData.dex)
-	for control in Plugins.get_panels(&"sidebar"):
-		_plugin_slot.add_child(control)
 	_on_connection_state_changed(Connection.state)
 
 
@@ -136,8 +132,6 @@ func _build_ui() -> void:
 		var state := tr("active") if Plugins.is_active(m.id) else (m.error if not m.is_valid() else tr("disabled"))
 		label.text = "%s %s - %s" % [m.name, m.version, state]
 		sidebar.add_child(label)
-	_plugin_slot = VBoxContainer.new()
-	sidebar.add_child(_plugin_slot)
 
 	var bottom := HBoxContainer.new()
 	root.add_child(bottom)
@@ -234,11 +228,6 @@ func _on_chat_message(room_id: String, user: String, text: String) -> void:
 
 func _on_data_loaded(dex: Dex) -> void:
 	_print_line(tr("Game data ready: %d species, %d moves") % [dex.species.size(), dex.moves.size()], COLOR_SYSTEM)
-
-
-func _on_plugin_panel_added(_plugin_id: String, slot: StringName, control: Control) -> void:
-	if slot == &"sidebar":
-		_plugin_slot.add_child(control)
 
 
 # --- Battle -------------------------------------------------------------------------

@@ -13,7 +13,21 @@ var status := ""
 var fainted := false
 var active := false
 var boosts := {}
+## Own Pokémon: move ids from |request|.
 var moves := PackedStringArray()
+## Moves seen in battle (names), mainly for the opponent.
+var revealed_moves := PackedStringArray()
+## Item and ability: from |request| (ids) for own Pokémon, from protocol (names) once revealed.
+var item := ""
+var ability := ""
+## Tera type once terastallized ("" = not terastallized).
+var tera_type := ""
+## Own Pokémon only: the type it would terastallize into.
+var tera_option := ""
+## Volatile effects like "Taunt", "Substitute" -> turn they started.
+var volatiles := {}
+## Own Pokémon only: exact stats from |request| (atk, def, spa, spd, spe).
+var stats := {}
 
 
 func _init(nickname := "") -> void:
@@ -57,3 +71,8 @@ func hp_percent() -> float:
 
 func boost(stat: String, amount: int) -> void:
 	boosts[stat] = clampi(int(boosts.get(stat, 0)) + amount, -6, 6)
+
+
+func reveal_move(move_name: String) -> void:
+	if not move_name.is_empty() and not move_name in revealed_moves:
+		revealed_moves.append(move_name)

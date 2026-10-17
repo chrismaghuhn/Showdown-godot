@@ -105,6 +105,9 @@
     "color.warning.default": "#D9A521",
     "color.warning.subtle": "#3A3112",
     "color.warning.text": "#F2D35B",
+    "delay.tooltip.hide": 0.1,
+    "delay.tooltip.neighbor": 0.6,
+    "delay.tooltip.show": 0.3,
     "font.family.mono": "Atkinson Hyperlegible Mono",
     "font.family.ui": "Atkinson Hyperlegible Next",
     "font.size.2xl": 24,
@@ -114,10 +117,13 @@
     "font.size.xl": 18,
     "font.size.xs": 11,
     "mix.type.tint": 0.12,
-    "motion.duration.fast": 0.12,
-    "motion.duration.normal": 0.2,
-    "motion.duration.slow": 0.35,
-    "motion.tooltip.delay": 0.3,
+    "motion.base": 0.2,
+    "motion.fast": 0.12,
+    "motion.hp.base": 0.2,
+    "motion.hp.max": 0.8,
+    "motion.hp.per-percent": 0.006,
+    "motion.instant": 0,
+    "motion.slow": 0.32,
     "radius.full": 999,
     "radius.lg": 8,
     "radius.md": 6,
@@ -137,6 +143,9 @@
     "space.md": 12,
     "space.sm": 8,
     "space.xl": 24,
-    "space.xs": 4
+    "space.xs": 4,
+    "toast.lifetime.action": 8,
+    "toast.lifetime.info": 5,
+    "toast.max": 3
   }
 }
