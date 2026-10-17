@@ -323,25 +323,26 @@ func _on_battle_request(battle: BattleState, request: Dictionary) -> void:
 
 	var active: Array = request.get("active", [])
 	var force_switch: Array = request.get("forceSwitch", [])
-	var trapped := false
 	if not active.is_empty() and force_switch.is_empty():
-		var slot: Dictionary = active[0]
-		trapped = slot.get("trapped", false) or slot.get("maybeTrapped", false)
-		var moves: Array = slot.get("moves", [])
+		var moves: Array = active[0].get("moves", [])
 		for i in moves.size():
 			var move: Dictionary = moves[i]
 			var button := _add_action(_move_label(move, battle), battle.room_id, "move %d" % (i + 1), rqid)
 			button.disabled = move.get("disabled", false) or int(move.get("pp", 1)) <= 0
 
-	if trapped:
-		return
+	# Same rules as the battle screen: "maybeTrapped" still allows switching, and Revival
+	# Blessing picks a fainted Pokémon.
+	var label := tr("Revive %s (%s)") if BattleChoices.is_reviving(request) else tr("Switch to %s (%s)")
 	var team: Array = request.get("side", {}).get("pokemon", [])
 	for i in team.size():
-		var mon: Dictionary = team[i]
-		var condition := str(mon.get("condition", ""))
-		if mon.get("active", false) or condition.ends_with(" fnt"):
+		var entry: Dictionary = team[i]
+		var condition := str(entry.get("condition", ""))
+		var mon := BattlePokemon.new()
+		mon.active = entry.get("active", false)
+		mon.apply_condition(condition)
+		if not BattleChoices.can_switch_to(request, mon):
 			continue
-		_add_action(tr("Switch to %s (%s)") % [str(mon.get("details", "")).get_slice(",", 0), condition],
+		_add_action(label % [str(entry.get("details", "")).get_slice(",", 0), condition],
 			battle.room_id, "switch %d" % (i + 1), rqid)
 
 
