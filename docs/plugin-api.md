@@ -43,14 +43,14 @@ func _plugin_disable() -> void:
 
 | Event | Arguments |
 |---|---|
-| `connection_state_changed` | `state: int` |
+| `connection_state_changed` | `state: int` – 0 disconnected, 1 connecting, 2 connected, 3 waiting for the next reconnect attempt |
 | `logged_in` | `username: String` |
 | `message_received` | `msg: PSMessage` (every raw protocol message) |
 | `room_joined` | `room_id: String, room_type: String` |
 | `room_left` | `room_id: String` |
 | `chat_message` | `room_id: String, user: String, text: String` |
 | `private_message` | `from: String, to: String, text: String` |
-| `battle_started` | `battle: BattleState` |
+| `battle_started` | `battle: BattleState` – also after a reconnect, when the server replays a running battle from the start: then `battle.restored` is true and it's a new `BattleState` for the same `room_id` (reset per-battle state you keep) |
 | `battle_updated` | `battle: BattleState, msg: PSMessage` (state already updated) |
 | `battle_request` | `battle: BattleState, request: Dictionary` (the server's `|request|` JSON) |
 | `battle_ended` | `battle: BattleState, winner: String` |
@@ -85,6 +85,9 @@ its UI comes from.
   (Linux: `~/.local/share/godot/app_userdata/Showdown Desktop/plugins/`).
 - During development: `tools/run_client.sh` loads the repo's `plugins/` folder.
   Enable plugins with `--enable-plugins=id1,id2`.
+
+A plugin that raises an engine or script error is **paused**: it is switched off, the user
+sees "<name> paused" with "Reload plugin" / "Disable", and the battle goes on.
 
 ## Versioning
 

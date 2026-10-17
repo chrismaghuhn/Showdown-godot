@@ -27,6 +27,8 @@ var timer_total_seconds := -1
 ## Latest |request| payload (what we may choose this turn).
 var request := {}
 var ended := false
+## Rejoined after a reconnect (the log was replayed from the start).
+var restored := false
 var winner := ""
 
 

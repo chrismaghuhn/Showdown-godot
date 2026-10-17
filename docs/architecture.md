@@ -21,10 +21,10 @@ This rule is what keeps the codebase from needing rewrites as features grow.
 | `protocol/` | `PSParser`, `PSMessage` | nothing |
 | `data/` | `Dex`, `DexSpecies`, `DexMove`, `DexEntry`, `JsObjectParser` | `protocol/` |
 | `model/` | `BattleState`, `BattleSide`, `BattlePokemon` | `protocol/`, `data/` |
-| `net/` | `Connection` (autoload), `LoginClient`, `HttpCache` | `protocol/`, `core/` |
+| `net/` | `Connection` (autoload), `LoginClient`, `ReconnectPolicy`, `SessionStore`, `HttpCache` | `protocol/`, `core/` |
 | `core/` | `AppConfig`, `EventBus`, `Rooms`, `GameData`, `Sounds`, `Notifier` (autoloads), `NotificationEvents`, `NativeNotifier` | `protocol/`, `data/`, `model/`, `net/` |
 | `plugins/` | `Plugins` (autoload), `PluginAPI`, `PluginManifest`, `ClientPlugin` | everything below |
-| `ui/` | `screens/<name>/`, `components/`, `theme/` (`Themes` autoload, `ThemeTokens`, `ThemeBuilder`) | everything below, **only via EventBus / public methods** |
+| `ui/` | `screens/<name>/`, `components/`, `overlays/` (connection cards, banner, download progress), `theme/` (`Themes` autoload, `ThemeTokens`, `ThemeBuilder`) | everything below, **only via EventBus / public methods** |
 | `app/` | entry scene, wiring, dev automation | everything |
 
 ## Data flow
@@ -38,6 +38,40 @@ This rule is what keeps the codebase from needing rewrites as features grow.
 
 The server runs all game mechanics. The client never simulates a battle; it mirrors state
 from the protocol and offers the choices the server lists in `|request|`.
+
+## Connection, sign-in and reconnecting
+
+`Connection.State`: `DISCONNECTED`, `CONNECTING`, `CONNECTED`, `WAITING` (the next attempt is
+scheduled). States are only ever appended, plugins see the number.
+
+- **Attempts.** A socket that closes, or an attempt that doesn't reach `|challstr|` within
+  12 s, is retried by `ReconnectPolicy`: 2, 4, 8, 16, 30 s (±20 % jitter), at most 5
+  attempts, then `EventBus.connection_error` and "Try again". `disconnect_from_server()`
+  ("Work offline") never reconnects.
+- **Dead links.** A pulled cable doesn't close the socket. The websocket heartbeat pings every
+  10 s (`--heartbeat=N` in tests); a missing pong closes the socket, which starts the attempts.
+- **Signing in.** `Connection.login(name, password)`: without a login server (`--no-security`)
+  it's `/trn name`, otherwise `LoginClient` gets an assertion (`login` with a password,
+  `getassertion` without one, `upkeep` with the session cookie). The password only lives for
+  that one request. "Stay signed in" keeps the name (settings) and the login server's `sid`
+  cookie (`SessionStore`, `user://session.cfg`, owner-only) - never the password. With it on
+  and something saved to sign in with, the app connects to the last server on launch, in
+  the background (no modal card; `--offline` skips it).
+- **After a reconnect** the client signs in again as `session_name` (cookie or unregistered
+  name, no password), retrying a few times while the server still holds the old connection
+  (`|nametaken|`), then emits `EventBus.reconnected`. The server rejoins a returning user's
+  battle rooms itself and replays each from `|init|`; `Rooms` joins the rest (also running
+  games from `|updatesearch|`), marks those `BattleState.restored` and emits
+  `battles_restored(count)`. Restored battles never take over the screen.
+- **UI** (`ui/overlays/`, design board "03 · Motion & app states"): `ConnectionFlow` decides,
+  from `Connection.status()`, between the modal card (first connection, sign-in, gave up) and
+  the banner (a connection that worked dropped). `--app-state=<id>` shows each state with
+  sample data for screenshots.
+- **Tests:** `tools/e2e_reconnect.sh` cuts and blackholes a bot's connection mid-battle
+  through `tools/net_fault_proxy.py`; `tools/e2e_sign_in.sh` drives the sign-in card.
+
+A plugin whose scripts raise an engine error is paused (`Plugins.pause()`,
+`EventBus.plugin_paused`) and shown as "<name> paused" with "Reload plugin" / "Disable".
 
 ## Where new features go
 

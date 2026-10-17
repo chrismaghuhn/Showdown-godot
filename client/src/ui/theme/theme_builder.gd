@@ -75,6 +75,7 @@ func _build() -> void:
 	_build_scrolling()
 	_build_toggle_icons()
 	_build_battle()
+	_build_app_states()
 
 
 # --- Helpers ----------------------------------------------------------------------
@@ -560,6 +561,72 @@ func _build_battle_layout() -> void:
 	theme.set_color("ground", "BattleStage", c("color.field.ground"))
 	theme.set_color("placeholder", "BattleStage", c("color.text.muted"))
 	theme.set_color("placeholder_border", "BattleStage", c("color.border.default"))
+
+
+## Connecting, sign-in, banners, errors and empty states (design: "03 · Motion & app states").
+func _build_app_states() -> void:
+	var lg := t.px("radius.lg")
+	var bw := _bw
+	var panels := {
+		# .ms-card: the centered 360px card for connecting / signing in / blocking errors.
+		"StateCard": _shadow(_box(c("color.surface.panel"), c("color.border.default"), bw, lg, t.px("space.xl"), t.px("space.xl")), "md"),
+		"SectionPanel": _box(c("color.surface.panel"), c("color.border.default"), bw, lg, t.px("space.lg"), t.px("space.lg")),
+		"DangerCard": _box(c("color.surface.panel"), c("color.danger.default"), bw, lg, t.px("space.lg"), t.px("space.lg")),
+		"InlineErrorPanel": _box(c("color.danger.subtle"), c("color.border.default"), bw, lg, t.px("space.md"), t.px("space.md")),
+		# .ms-empty-ic (48px) and .c-toast-ic (32px) circles.
+		"EmptyIconPanel": _box(c("color.surface.raised"), c("color.border.default"), bw, 24, 0, 0),
+		"SuccessIconPanel": _box(c("color.success.subtle"), Color.TRANSPARENT, 0, 16, 0, 0),
+		# .ms-skel: flat blocks that stand in for content while it loads.
+		"SkeletonBlock": _box(c("color.surface.hover"), Color.TRANSPARENT, 0, t.px("radius.sm"), 0, 0),
+	}
+	# .ms-banner: full-width strip under the app header, tinted by its tone.
+	for tone in ["warning", "danger", "success"]:
+		var banner := _box(c("color.%s.subtle" % tone), c("color.border.default"), 0, 0, t.px("space.sm"), t.px("space.sm"))
+		banner.border_width_bottom = bw
+		banner.content_margin_left = t.px("space.md")
+		panels["Banner_" + tone] = banner
+	for variation: String in panels:
+		_variation(variation, "PanelContainer")
+		theme.set_stylebox("panel", variation, panels[variation])
+
+	var labels := {
+		"CardTitleLabel": [c("color.text.primary"), "ui_bold", "font.size.lg"],
+		"FieldLabel": [c("color.text.secondary"), "ui_semi", "font.size.sm"],
+		"SmallSecondaryLabel": [c("color.text.secondary"), "ui", "font.size.sm"],
+		"SmallBoldLabel": [c("color.text.primary"), "ui_bold", "font.size.sm"],
+		"SmallWarningLabel": [c("color.warning.text"), "ui_semi", "font.size.sm"],
+	}
+	for variation: String in labels:
+		var spec: Array = labels[variation]
+		_variation(variation, "Label")
+		_label_style(variation, spec[0], spec[1], spec[2])
+
+	# .c-btn-sm variants (28px): primary and ghost; the secondary one is SmallButton.
+	var clear := Color.TRANSPARENT
+	var sm := t.px("space.sm")
+	var disabled := [clear, c("color.border.subtle")]
+	_variation("SmallPrimaryButton", "Button")
+	_button("SmallPrimaryButton", {
+		"normal": [c("color.accent.default"), c("color.accent.default")],
+		"hover": [c("color.accent.hover"), c("color.accent.hover")],
+		"pressed": [c("color.accent.pressed"), c("color.accent.pressed")],
+		"disabled": disabled,
+	}, [c("color.text.on-accent"), c("color.text.on-accent"), c("color.text.disabled")], sm, 5, "ui_semi", "font.size.sm")
+	_variation("SmallGhostButton", "Button")
+	_button("SmallGhostButton", {
+		"normal": [clear, clear],
+		"hover": [c("color.surface.hover"), clear],
+		"pressed": [c("color.surface.pressed"), clear],
+		"disabled": [clear, clear],
+	}, [c("color.text.secondary"), c("color.text.primary"), c("color.text.disabled")], sm, 5, "ui_semi", "font.size.sm")
+
+	# .ms-track / .ms-fill: 8px progress bar.
+	var full := t.px("radius.full")
+	theme.set_stylebox("background", "ProgressBar", _box(c("color.surface.selected"), clear, 0, full, 0, 4))
+	theme.set_stylebox("fill", "ProgressBar", _box(c("color.accent.default"), clear, 0, full, 0, 4))
+	theme.set_color("font_color", "ProgressBar", c("color.text.primary"))
+	theme.set_font("font", "ProgressBar", _fonts["mono_semi"])
+	theme.set_font_size("font_size", "ProgressBar", t.px("font.size.sm"))
 
 
 func _bottom_border_box(bg: Color, pad_h: int, pad_v: int) -> StyleBoxFlat:

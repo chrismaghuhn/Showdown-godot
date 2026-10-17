@@ -11,10 +11,23 @@ extends Node
 ##       (screenshot once the battle reaches that turn, then keep playing)
 ## Screenshots render the app into an offscreen viewport of exactly --screenshot-size
 ## (default 1280x800, scaled by --ui-scale), independent of the window manager.
+##   ... --app-state=<id> --screenshot=/tmp/state.png   (shows one app state with sample data:
+##       connecting, connecting-retry, servers, sign-in, sign-in-password, sign-in-error,
+##       reconnecting, reconnect-failed, gave-up, loading)
+##   ... --server=local --server-url=ws://127.0.0.1:8001/showdown/websocket   (through a proxy,
+##       see tools/net_fault_proxy.py and tools/e2e_reconnect.sh)
+##   ... --fault-proxy=8002 --faults=3:cut,8:blackhole [--fault-hold=8]
+##       (sends a command to the proxy's control port when the battle reaches that turn; a
+##       blackhole is lifted with "normal" after --fault-hold seconds)
+
+const APP_STATES := ["connecting", "connecting-retry", "servers", "sign-in", "sign-in-password",
+	"sign-in-error", "reconnecting", "reconnect-failed", "gave-up", "loading"]
 
 var _capture: SubViewport
 
 var _searched := false
+## turn -> proxy command (--faults)
+var _faults := {}
 
 
 func _ready() -> void:
@@ -25,6 +38,8 @@ func _ready() -> void:
 		return
 	if AppConfig.has_cli("notify-test"):
 		Notifier.send_test.call_deferred()
+	if AppConfig.has_cli("app-state"):
+		_preview_app_state.call_deferred(AppConfig.cli("app-state"))
 	if AppConfig.has_cli("screenshot") and not AppConfig.has_cli("screenshot-turn"):
 		_screenshot(AppConfig.cli("screenshot"), true)
 		return
@@ -37,12 +52,20 @@ func _ready() -> void:
 		get_tree().create_timer(timeout).timeout.connect(_finish.bind(2, "timeout after %ss" % timeout))
 
 	EventBus.connection_error.connect(func(r: String) -> void: _finish(1, "connection error: " + r))
+	EventBus.reconnect_scheduled.connect(func(attempt: int, max_attempts: int, delay: float) -> void:
+		_log("connection lost (%s), attempt %d of %d in %.1f s" % [Connection.last_error, attempt, max_attempts, delay]))
+	EventBus.reconnected.connect(func() -> void: _log("reconnected as " + Connection.username))
+	EventBus.battles_restored.connect(func(count: int) -> void: _log("battles restored: %d" % count))
 	EventBus.login_failed.connect(func(r: String) -> void: _finish(1, "login failed: " + r))
 	EventBus.logged_in.connect(_on_logged_in)
 	EventBus.battle_started.connect(func(b: BattleState) -> void: _log("battle started: " + b.room_id))
 	EventBus.battle_ended.connect(_on_battle_ended)
 	if AppConfig.has_cli("screenshot-turn"):
 		EventBus.battle_updated.connect(_on_battle_updated_for_screenshot)
+	if AppConfig.has_cli("fault-proxy"):
+		for entry in AppConfig.cli("faults").split(",", false):
+			_faults[entry.get_slice(":", 0).to_int()] = entry.get_slice(":", 1)
+		EventBus.battle_updated.connect(_on_battle_updated_for_faults)
 
 	Connection.connect_to_server(AppConfig.cli("server"))
 	Connection.login(username)
@@ -55,6 +78,75 @@ func _on_logged_in(username: String) -> void:
 		Connection.send("", "/utm null")
 		Connection.send("", "/search " + AppConfig.cli("search"))
 		_log("searching " + AppConfig.cli("search"))
+
+
+func _on_battle_updated_for_faults(battle: BattleState, msg: PSMessage) -> void:
+	if msg.type != "turn" or not _faults.has(battle.turn):
+		return
+	var command: String = _faults[battle.turn]
+	_faults.erase(battle.turn)
+	_proxy_command(command)
+	if command == "blackhole":
+		get_tree().create_timer(AppConfig.cli("fault-hold", "8").to_float()).timeout.connect(_proxy_command.bind("normal"))
+
+
+## Sends one command to tools/net_fault_proxy.py's control port.
+func _proxy_command(command: String) -> void:
+	var peer := StreamPeerTCP.new()
+	if peer.connect_to_host("127.0.0.1", AppConfig.cli("fault-proxy").to_int()) != OK:
+		_log("proxy: could not reach the control port")
+		return
+	while peer.get_status() == StreamPeerTCP.STATUS_CONNECTING:
+		await get_tree().process_frame
+		peer.poll()
+	peer.put_data((command + "\n").to_utf8_buffer())
+	_log("proxy: " + command)
+	await get_tree().create_timer(0.5).timeout
+	peer.disconnect_from_host()
+
+
+## Shows one app state from the design board with sample data, for screenshots.
+func _preview_app_state(id: String) -> void:
+	if not id in APP_STATES:
+		_log("unknown --app-state '%s', known: %s" % [id, ", ".join(APP_STATES)])
+		return
+	var app: Node = get_parent()
+	var overlay: ConnectionOverlay = app.connection_overlay
+	var host := "sim3.psim.us"
+	var base := {"state": Connection.State.CONNECTED, "attempt": 1, "max_attempts": 5, "retry_in": 0.0,
+		"reconnecting": false, "gave_up": false, "signed_in": false, "signing_in": false, "username": "",
+		"session_name": "", "server_host": host, "last_error": ""}
+	match id:
+		"connecting":
+			overlay.preview(base.merged({"state": Connection.State.CONNECTING}, true), {})
+		"connecting-retry":
+			overlay.preview(base.merged({"state": Connection.State.WAITING, "attempt": 2, "retry_in": 4.0}, true), {})
+		"servers":
+			overlay.preview(base.merged({"state": Connection.State.CONNECTING}, true), {"servers_open": true})
+		"sign-in":
+			overlay.preview(base, {})
+		"sign-in-password", "sign-in-error":
+			overlay.preview(base, {}, "ironquill", tr("Wrong password.") if id == "sign-in-error" else "")
+			var card := overlay.find_children("*", "", true, false).filter(func(n: Node) -> bool: return n is SignInCard)
+			if not card.is_empty():
+				(card[0] as SignInCard).fill_for_preview("ironquill", "examplepw")
+		"reconnecting":
+			app.connection_banner.preview(base.merged({"state": Connection.State.WAITING, "attempt": 2,
+				"retry_in": 4.0, "reconnecting": true}, true))
+			EventBus.toast_requested.emit({"event": "reconnected", "title": tr("Reconnected"),
+				"body": ConnectionFlow.restored_text(2), "persistent": true})
+		"reconnect-failed":
+			app.connection_banner.preview(base.merged({"state": Connection.State.DISCONNECTED, "attempt": 5,
+				"reconnecting": true, "gave_up": true}, true))
+		"gave-up":
+			overlay.preview(base.merged({"state": Connection.State.DISCONNECTED, "attempt": 5, "gave_up": true,
+				"last_error": "No answer from sim3.psim.us"}, true), {})
+		"loading":
+			app.data_panel.preview({"fraction": 0.42, "bytes": 1840000, "files": [
+				{"label": "Pokédex", "state": "done"}, {"label": "Moves", "state": "done"},
+				{"label": "Items", "state": "loading"}, {"label": "Abilities", "state": "pending"},
+				{"label": "Type chart", "state": "pending"}]})
+	_log("app state: " + id)
 
 
 func _on_battle_ended(battle: BattleState, winner: String) -> void:

@@ -11,3 +11,6 @@ client/export_presets.cfg.local
 Thumbs.db
 .vscode/
 .idea/
+
+# Python (tools/net_fault_proxy.py)
+__pycache__/

@@ -85,6 +85,7 @@ func _build() -> void:
 	_badges_section(right)
 	_hp_section(right)
 	_panels_section(right)
+	_app_states_section(page)
 
 
 func _refresh_header() -> void:
@@ -261,6 +262,80 @@ func _panels_section(parent: Control) -> void:
 		slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		slot.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		slots.add_child(slot)
+
+
+## Design "03 · Motion & app states", frames 04-08 (the connection cards are full-screen:
+## run with --app-state=<id>, see src/app/dev_automation.gd).
+func _app_states_section(parent: Control) -> void:
+	var box := _section(parent, "App states", "Errors (blocking, inline, plugin), empty lists and loading skeletons.")
+	var grid := HFlowContainer.new()
+	grid.add_theme_constant_override("h_separation", 16)
+	grid.add_theme_constant_override("v_separation", 16)
+	box.add_child(grid)
+
+	var errors := _state_frame(grid, "05 · Errors")
+	var error_row := HBoxContainer.new()
+	error_row.add_theme_constant_override("separation", 12)
+	errors.add_child(error_row)
+	var blocking := ErrorBox.blocking("Couldn’t load your teams", "teams.json is damaged. Your last backup is from today, 22:41.",
+		[["Restore backup", Callable()], ["Open folder", Callable()]])
+	blocking.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	blocking.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	error_row.add_child(blocking)
+	var side := VBoxContainer.new()
+	side.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	error_row.add_child(side)
+	side.add_child(ErrorBox.inline("Team rejected by [Gen 9] OU · 2 problems",
+		PackedStringArray(["Flutter Mane is banned in OU.", "Garchomp’s EVs total 512, max 510."])))
+	side.add_child(ErrorBox.plugin("Damage Calc paused", "It stopped responding for 5 s. The battle is not affected.",
+		[["Reload plugin", Callable()], ["Disable", Callable()]]))
+
+	var empty := _state_frame(grid, "06 · Empty page")
+	empty.add_child(EmptyState.page("ui-grid-view", "No teams yet",
+		"Build one from scratch, or paste a team you copied from Showdown, Pokepaste or VRPastes.",
+		[["New team", Callable()], ["Paste from clipboard", Callable()]], ["Restore from a backup…", Callable()]))
+
+	var lists := _state_frame(grid, "07 · Empty lists · 08 · No results")
+	var list_row := HBoxContainer.new()
+	list_row.add_theme_constant_override("separation", 12)
+	lists.add_child(list_row)
+	for section: Control in [
+			EmptyState.section("Your battles", "No active battles. Battles you start or join show up here.", ["Find a battle", Callable()]),
+			EmptyState.section("Incoming challenges", "Nobody has challenged you. You can turn challenges off in Settings › General.")]:
+		section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		section.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		for label in section.find_children("*", "Label", true, false):
+			(label as Label).custom_minimum_size.x = 180
+		list_row.add_child(section)
+	var search := LineEdit.new()
+	search.text = "kingambit stall"
+	search.placeholder_text = "Search teams"
+	lists.add_child(search)
+	lists.add_child(EmptyState.no_results("teams", "kingambit stall", "All teams", Callable()))
+
+	var loading := _state_frame(grid, "04 · Loading")
+	for fraction in [0.3, 0.7, 0.55]:
+		loading.add_child(SkeletonBlock.line(fraction))
+	for i in 2:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 12)
+		row.add_child(SkeletonBlock.new(28, 28))
+		var middle := SkeletonBlock.new(0, 12)
+		middle.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(middle)
+		row.add_child(SkeletonBlock.new(64, 12))
+		loading.add_child(row)
+	loading.add_child(_label("Opacity pulse 1 ↔ 0.6 every 1.2 s, static with reduce motion.", &"MutedLabel"))
+
+
+func _state_frame(parent: Control, tag: String) -> VBoxContainer:
+	var frame := VBoxContainer.new()
+	frame.custom_minimum_size.x = 520
+	frame.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	frame.add_theme_constant_override("separation", 12)
+	frame.add_child(_label(tag, &"CapsLabel", true))
+	parent.add_child(frame)
+	return frame
 
 
 # --- Helpers ------------------------------------------------------------------------------

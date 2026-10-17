@@ -8,7 +8,9 @@ extends VBoxContainer
 const EVENT_ICONS := {
 	"battle_found": "ui-battle", "your_turn": "ui-notify", "timer_low": "ui-timer",
 	"challenge": "ui-user-plus", "mention": "ui-chat", "private_message": "ui-inbox", "battle_ended": "ui-check-circle",
+	"reconnected": "ui-check", "plugin_paused": "ui-plugin",
 }
+const EVENT_COLORS := {"reconnected": "color.success.text", "plugin_paused": "color.plugin.text"}
 
 
 func _init() -> void:
@@ -82,7 +84,8 @@ func _build(toast: Dictionary) -> PanelContainer:
 
 	var head := HBoxContainer.new()
 	column.add_child(head)
-	head.add_child(IconView.new(EVENT_ICONS.get(toast.get("event", ""), "ui-notify"), "color.text.primary"))
+	var event := str(toast.get("event", ""))
+	head.add_child(IconView.new(EVENT_ICONS.get(event, "ui-notify"), EVENT_COLORS.get(event, "color.text.primary")))
 	var title := Label.new()
 	title.text = str(toast.get("title", ""))
 	title.theme_type_variation = &"DockTitleLabel"
