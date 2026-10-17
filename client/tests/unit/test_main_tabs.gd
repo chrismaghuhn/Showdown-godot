@@ -121,9 +121,11 @@ func test_dismissed_sign_in_drops_the_pending_search() -> void:
 		"signing_in": false, "reconnecting": false, "server_host": "sim3.psim.us"}, {})
 	assert_eq(overlay.current_card(), &"sign_in", "Battle! while signed out asks for a name")
 	Rooms._pending_search = "gen9randombattle"
+	Rooms._pending_challenge = ["misty", "gen9randombattle"]
 	assert_true(Rooms.is_searching(), "the search waits for the name")
 	overlay._sign_in.dismissed.emit()
 	assert_true(not Rooms.is_searching(), "Not now: no search later")
+	assert_eq(Rooms._pending_challenge, [], "and no challenge later")
 	main.free()
 
 
@@ -135,3 +137,31 @@ func test_a_battle_you_played_that_expired_reads_ended() -> void:
 	var battle := (main._screens[_tab("battle-gen9randombattle-71")] as BattleScreen).battle
 	assert_eq(main.battle_tab_spec(battle)["meta"], "Random · ended", "not a tie")
 	_cleanup(main, ["battle-gen9randombattle-71"])
+
+
+func test_lobby_rebuilds_battle_cards_once_per_frame() -> void:
+	var main := _main()
+	var home: HomeScreen = main._screens[&"home"]
+	main.show_screen(&"settings")
+	_feed(">battle-gen9randombattle-81\n|init|battle\n|player|p1|Ash|1|\n|player|p2|Misty|2|\n|turn|1")
+	main.show_screen(&"home")
+	for turn in range(2, 40):
+		_feed(">battle-gen9randombattle-81\n|switch|p2a: Pikachu|Pikachu, L88|50/100\n|-damage|p2a: Pikachu|40/100\n|turn|%d" % turn)
+	assert_true(home._battles_dirty, "many messages: one pending rebuild")
+	home._refresh_battles()
+	assert_eq(home._battles.get_child_count(), 1, "one card")
+	assert_true(not home._battles_dirty, "done")
+	_cleanup(main, ["battle-gen9randombattle-81"])
+
+
+func test_server_popups_become_toasts() -> void:
+	var main := _main()
+	var toasts: Array[Dictionary] = []
+	var on_toast := func(toast: Dictionary) -> void: toasts.append(toast)
+	EventBus.toast_requested.connect(on_toast)
+	EventBus.popup.emit("The user 'nobody' was not found.")
+	EventBus.popup.emit("|html|<b>Team rejected</b>: &quot;Pikachu&quot; is banned.")
+	assert_eq(toasts.map(func(t: Dictionary) -> String: return t["body"]),
+		["The user 'nobody' was not found.", "Team rejected : \"Pikachu\" is banned."], "plain text")
+	EventBus.toast_requested.disconnect(on_toast)
+	_cleanup(main, [])

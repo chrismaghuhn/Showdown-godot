@@ -43,6 +43,7 @@ var current: StringName = &""
 var _screens := {}
 var _content := Control.new()
 var _tab_scroll := ScrollContainer.new()
+var _start_spacer: Control
 var _start_chip := Label.new()
 var _status := ConnectionStatus.new()
 var _command := CommandButton.new()
@@ -67,6 +68,7 @@ func _ready() -> void:
 	EventBus.battle_attention_changed.connect(_update_battle_tab)
 	EventBus.room_left.connect(_on_room_left)
 	EventBus.join_failed.connect(_on_join_failed)
+	EventBus.popup.connect(_on_server_popup)
 	EventBus.plugin_paused.connect(_on_plugin_paused)
 	EventBus.connection_state_changed.connect(func(_s: int) -> void: _refresh_header())
 	tabs.tab_selected.connect(show_screen)
@@ -163,8 +165,11 @@ func _build_header() -> PanelContainer:
 	_tab_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_tab_scroll.add_child(tabs)
 	row.add_child(_tab_scroll)
+	# On the start screen the tabs are hidden; this keeps the right side to the right.
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	spacer.visible = false
+	_start_spacer = spacer
 	row.add_child(spacer)
 	row.add_child(_spaced(_status, 0, 8))
 	row.add_child(_command)
@@ -193,6 +198,7 @@ func _refresh_header() -> void:
 	var start := current == &"start"
 	_start_chip.visible = start
 	_tab_scroll.visible = not start
+	_start_spacer.visible = start
 	# The pill always shows on the start screen; elsewhere only when something is wrong.
 	_status.get_parent().visible = start or _status.needs_attention()
 
@@ -262,7 +268,11 @@ func _screen(id: StringName) -> Control:
 			&"start":
 				screen = StartScreen.new()
 			&"home":
-				screen = HomeScreen.new()
+				var home := HomeScreen.new()
+				# "Open · Ctrl+3" on a lobby battle card: the number of that battle's tab.
+				home.tab_number = func(room_id: String) -> int:
+					return tabs.ids().find(StringName("battle:" + room_id)) + 1
+				screen = home
 			&"teambuilder":
 				screen = ComingSoonScreen.new("ui-grid-view", tr("The Teambuilder is coming"),
 					tr("Random Battles bring their own team, so you can play right away. Building, importing and backing up teams comes in v0.2."))
@@ -399,6 +409,19 @@ func _on_room_left(room_id: String) -> void:
 			battle.expired = true
 			battle.awaiting_choice = false
 			tabs.update_tab(id, battle_tab_spec(battle))
+
+
+## The server's |popup| (e.g. "The user 'x' was not found." after a challenge) as a toast; it
+## used to reach only the developer console. Plain text only.
+func _on_server_popup(text: String) -> void:
+	var plain := text.trim_prefix("|html|")
+	if plain != text:
+		plain = RegEx.create_from_string("<[^>]*>").sub(plain, " ", true).strip_edges()
+		for entity: Array in [["&lt;", "<"], ["&gt;", ">"], ["&quot;", "\""], ["&#39;", "'"], ["&#039;", "'"], ["&amp;", "&"]]:
+			plain = plain.replace(entity[0], entity[1])
+	if plain.is_empty():
+		return
+	EventBus.toast_requested.emit({"event": "popup", "title": tr("Message from the server"), "body": plain})
 
 
 func _on_join_failed(room_id: String, reason: String) -> void:

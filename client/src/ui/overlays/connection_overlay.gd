@@ -225,7 +225,8 @@ func _build_sign_in(status: Dictionary) -> Control:
 	_sign_in.dismissed.connect(func() -> void:
 		_ui["sign_in_open"] = false
 		_ui["dismissed"] = true
-		# "Battle!" while signed out waits for a name; "Not now" means: no battle either.
+		# "Battle!" or a challenge while signed out waits for a name; "Not now" means: neither.
+		Rooms.drop_pending()
 		Rooms.cancel_search()
 		_error = ""
 		_refresh())
@@ -265,6 +266,7 @@ func _connect(server_id: String, quiet := false) -> void:
 
 
 func _work_offline() -> void:
+	Rooms.drop_pending()
 	Rooms.cancel_search()
 	_ui["servers_open"] = false
 	_preview = {}

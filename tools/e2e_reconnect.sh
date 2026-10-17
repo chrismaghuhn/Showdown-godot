@@ -25,6 +25,7 @@ run_bot() {
   shift
   "$GODOT" --headless --path "$CLIENT_DIR" -- \
     --plugins-dir="$PLUGINS_DIR" --enable-plugins=dev-autopilot --no-data-fetch \
+    --settings-file="$LOG_DIR/$name-settings.cfg" \
     --server=local --name="$name" --search="$FORMAT" --quit-after-battle --timeout=300 "$@" \
     >"$LOG_DIR/$name.log" 2>&1
 }

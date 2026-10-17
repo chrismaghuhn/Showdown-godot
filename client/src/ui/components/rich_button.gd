@@ -5,6 +5,12 @@ extends Button
 ## sits inside with the given padding and the button grows to fit it.
 
 var row := HBoxContainer.new()
+## The button is at least this wide, however small its content (custom_minimum_size.x is
+## recomputed from the content).
+var min_width := 0.0:
+	set(value):
+		min_width = value
+		_fit()
 var _pad_left := 12
 var _pad_right := 12
 
@@ -58,5 +64,5 @@ static func kbd(keys: String, on_accent := false) -> Label:
 
 func _fit() -> void:
 	var content := row.get_combined_minimum_size()
-	custom_minimum_size.x = content.x + _pad_left + _pad_right
+	custom_minimum_size.x = maxf(content.x + _pad_left + _pad_right, min_width)
 	custom_minimum_size.y = maxf(custom_minimum_size.y, content.y)

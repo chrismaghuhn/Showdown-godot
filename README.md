@@ -6,8 +6,9 @@
 A **native**, **fully customizable** desktop client for [Pokémon Showdown](https://pokemonshowdown.com),
 built on an **open plugin platform**. Made with Godot 4, by and for the community.
 
-> Status: early, playable. Start screen, sign-in, Random Battles in tabs, reconnecting, notifications,
-> themes and plugins work. The lobby, Teambuilder, chat rooms and replays come next (see milestones).
+> Status: early, playable. Start screen, sign-in, a lobby (formats, challenges, ratings), Random Battles
+> in tabs, reconnecting, notifications, themes and plugins work. The Teambuilder, chat rooms and replays
+> come next (see milestones).
 
 ## Why another client?
 
@@ -51,11 +52,12 @@ To develop in the editor, open `client/project.godot` in Godot.
 tools/run_tests.sh     # unit tests (parser, battle state)
 tools/e2e_battle.sh    # two headless clients play a full battle on the local server
 tools/e2e_reconnect.sh # same, but one client loses its connection twice mid-battle
-tools/e2e_ui.sh        # UI flows: sign-in card, start screen, battle tabs, rejoin after a restart
+tools/e2e_ui.sh        # UI flows: sign-in, start screen, battle tabs, rejoin, lobby challenges and ratings
 tools/check_data.sh    # loads game data + sample sprites from the configured source
 ```
 
-Both run in GitHub Actions on every push and pull request ([ci.yml](.github/workflows/ci.yml)).
+Tests run with a throwaway settings file (`--settings-file`), so they never change your own settings.
+They run in GitHub Actions on every push and pull request ([ci.yml](.github/workflows/ci.yml)).
 The end-to-end test uses a pinned Showdown server commit (`PS_SERVER_REF`) and never touches the official servers.
 
 ## Builds

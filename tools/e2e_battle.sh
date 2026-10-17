@@ -12,6 +12,7 @@ godot_import
 run_bot() {
   "$GODOT" --headless --path "$CLIENT_DIR" -- \
     --plugins-dir="$PLUGINS_DIR" --enable-plugins=dev-autopilot --no-data-fetch \
+    --settings-file="$LOG_DIR/$1-settings.cfg" \
     --server=local --name="$1" --search="$FORMAT" --quit-after-battle --timeout=300 \
     >"$LOG_DIR/$1.log" 2>&1
 }

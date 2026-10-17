@@ -13,7 +13,8 @@ var _ids: Array[StringName] = []
 
 func _init() -> void:
 	super(&"CommandButton", 8, 4)
-	custom_minimum_size = Vector2(256, 28)
+	min_width = 256
+	custom_minimum_size.y = 28
 	size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	add(IconView.new("ui-search", "color.text.muted"))
 	add(RichButton.label(tr("Search or run a command"), &"MutedLabel"))

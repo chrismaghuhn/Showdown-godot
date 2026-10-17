@@ -18,8 +18,6 @@ var _room := ""
 var _name := "E2EShell%d" % randi_range(1000, 9999)
 var _opponent := "E2EShellOpp%d" % randi_range(1000, 9999)
 var _wait_until := 0.0
-## Settings this flow changes on the way; put back at the end.
-var _saved_play := {}
 
 
 func _process(delta: float) -> void:
@@ -29,8 +27,6 @@ func _process(delta: float) -> void:
 		return
 	match _step:
 		0:
-			for key in ["last_format", "last_format_name"]:
-				_saved_play[key] = AppConfig.get_setting("play", key, null)
 			_start_app()
 			_check(_main.current == &"start", "launch shows the start screen")
 			Connection.connect_to_server("local")
@@ -103,9 +99,6 @@ func _process(delta: float) -> void:
 		10:
 			_check(_main.current == &"home", "Ctrl+1 goes to Home")
 			Connection.send(_room, "/forfeit")
-			for key: String in _saved_play:
-				if _saved_play[key] != null:
-					AppConfig.set_setting("play", key, _saved_play[key])
 			print("[e2e] app shell flow: OK")
 			get_tree().quit(0)
 			_step = 99

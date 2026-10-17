@@ -17,6 +17,8 @@ const HISTORY_SIZE := 30
 ## [{event, title, body, time (unix seconds), screen}] newest first.
 var history: Array[Dictionary] = []
 var unread := 0
+## Challenges with a toast up (by user id); the toast goes when the challenge ends.
+var _challenge_toasts := {}
 
 var _sound_and_desktop := true
 var _current_screen := &""
@@ -35,6 +37,13 @@ func _ready() -> void:
 	EventBus.private_message.connect(_on_private_message)
 	EventBus.chat_message.connect(_on_chat_message)
 	EventBus.screen_changed.connect(_on_screen_changed)
+	# However a challenge ends (declined or accepted here, in the lobby, or cancelled by them),
+	# the server only says so from our side; Rooms knows which ones are still open.
+	EventBus.challenges_changed.connect(func() -> void:
+		for id: String in _challenge_toasts.keys():
+			if not Rooms.challenges.has(id) or not Rooms.challenges[id]["incoming"]:
+				_challenge_toasts.erase(id)
+				EventBus.toast_dismissed.emit("challenge:" + id))
 
 
 # --- Settings -------------------------------------------------------------------------------
@@ -194,10 +203,15 @@ func _on_private_message(from: String, to: String, text: String) -> void:
 		return
 	var format := NotificationEvents.challenge_format(from, to, text, me)
 	if not format.is_empty():
-		post("challenge", tr("Challenge from %s") % sender, format, [
-			[tr("Accept"), func() -> void: Connection.send("", "/accept " + sender)],
-			[tr("Decline"), func() -> void: Connection.send("", "/reject " + sender)],
-		], "challenge:" + PSParser.to_id(sender))
+		var format_name := FormatList.display_name(Rooms.formats, PSParser.to_id(format.get_slice("@@@", 0)))
+		var body := format_name if not format_name.is_empty() else format
+		var actions := [[tr("Decline"), func() -> void: Rooms.reject_challenge(sender)]]
+		if Rooms.format_needs_team(Rooms.formats, format):
+			body += " · " + tr("needs a team (Teambuilder in v0.2)")
+		else:
+			actions.push_front([tr("Accept"), func() -> void: Rooms.accept_challenge(sender)])
+		_challenge_toasts[PSParser.to_id(sender)] = true
+		post("challenge", tr("Challenge from %s") % sender, body, actions, "challenge:" + PSParser.to_id(sender))
 	elif NotificationEvents.is_private_message(from, text, me):
 		post("private_message", tr("Message from %s") % sender, text.trim_prefix("/me "))
 

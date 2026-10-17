@@ -4,6 +4,8 @@ extends RefCounted
 
 var id := ""
 var player_name := ""
+## Ladder rating from |player| (0 = unrated or unknown).
+var rating := 0
 var team_size := 0
 ## Nickname -> BattlePokemon, in the order they were first seen.
 var pokemon := {}

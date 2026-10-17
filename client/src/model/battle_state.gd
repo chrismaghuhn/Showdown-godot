@@ -45,6 +45,8 @@ var restored := false
 var awaiting_choice := false
 ## The room went away on the server before a result arrived (ended, but neither won nor tied).
 var expired := false
+## A ladder battle (|rated|): its result changes the players' ratings.
+var rated := false
 var winner := ""
 
 ## Abilities and items whose "[of]" is the other Pokémon involved (the attacker or the victim),
@@ -91,10 +93,15 @@ func apply(msg: PSMessage) -> void:
 		"player":
 			if not msg.arg(1).is_empty():
 				side(msg.arg(0)).player_name = msg.arg(1)
+				if msg.arg(3).is_valid_int():
+					side(msg.arg(0)).rating = msg.arg(3).to_int()
 		"teamsize":
 			side(msg.arg(0)).team_size = msg.arg(1).to_int()
 		"gametype":
 			game_type = msg.arg(0)
+		"rated":
+			# |rated|MESSAGE (tournaments) is only a note, not a ladder game.
+			rated = msg.arg(0).is_empty()
 		"gen":
 			gen = msg.arg(0).to_int()
 		"tier":
