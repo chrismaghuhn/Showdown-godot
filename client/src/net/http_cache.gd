@@ -63,9 +63,9 @@ func fetch(url: String, max_age_sec: int) -> PackedByteArray:
 		headers.append("If-Modified-Since: " + str(meta["last_modified"]))
 
 	var response: Dictionary = await _request(url, headers)
-	var code: int = response["code"]
-	var response_headers: PackedStringArray = response["headers"]
-	var body: PackedByteArray = response["body"]
+	var code: int = response.get("code", 0)
+	var response_headers: PackedStringArray = response.get("headers", PackedStringArray())
+	var body: PackedByteArray = response.get("body", PackedByteArray())
 	_active -= 1
 	_in_flight.erase(url)
 
@@ -97,8 +97,9 @@ func fetch(url: String, max_age_sec: int) -> PackedByteArray:
 	return result
 
 
-## Sends one GET request and waits for the answer: {code, headers, body}, code 0 if it failed.
-## Tests override this to answer without a network.
+## Sends one GET request and waits for the answer. Returns {code: int, headers:
+## PackedStringArray, body: PackedByteArray}, code 0 if the request failed (missing keys
+## count as empty). Tests override this to answer without a network.
 func _request(url: String, headers: PackedStringArray) -> Dictionary:
 	var http := HTTPRequest.new()
 	http.timeout = 30.0

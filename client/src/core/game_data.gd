@@ -69,7 +69,7 @@ func load_data() -> void:
 	if from_cache != null:
 		_set_dex(from_cache, "cache")
 
-	if AppConfig.has_cli("no-data-fetch"):
+	if not _fetch_enabled():
 		if dex == null:
 			EventBus.data_failed.emit("No cached data and --no-data-fetch is set")
 		return
@@ -101,7 +101,7 @@ func get_sprite(species: String, back := false, shiny := false) -> Texture2D:
 	if _textures.has(url):
 		return _textures[url]
 	var bytes: PackedByteArray
-	if AppConfig.has_cli("no-data-fetch"):
+	if not _fetch_enabled():
 		bytes = _cache.read_cached(url)
 	else:
 		bytes = await _cache.fetch(url, SPRITE_MAX_AGE)
@@ -136,21 +136,27 @@ func _set_file_state(key: String, file_state: String) -> void:
 
 ## Only new data files change the Dex; sprites come from the same cache.
 func _on_cache_updated(url: String) -> void:
-	for key: String in DATA_FILES:
-		if url == data_url() + DATA_FILES[key]:
-			_changed = true
-			return
+	if not _data_key(url).is_empty():
+		_changed = true
 
 
 func _on_download_progress(url: String, downloaded: int, total: int) -> void:
 	if not loading:
 		return
+	var key := _data_key(url)
+	if key.is_empty():
+		return
+	_file_bytes[key] = downloaded
+	_partial = clampf(float(downloaded) / total, 0.0, 1.0) if total > 0 else 0.0
+	_update_fraction()
+
+
+## The DATA_FILES key for a URL, or "" if it is not a data file (e.g. a sprite).
+func _data_key(url: String) -> String:
 	for key: String in DATA_FILES:
 		if url == data_url() + DATA_FILES[key]:
-			_file_bytes[key] = downloaded
-			_partial = clampf(float(downloaded) / total, 0.0, 1.0) if total > 0 else 0.0
-			_update_fraction()
-			return
+			return key
+	return ""
 
 
 ## Progress counts finished files, plus the share of the one downloading (if its size is known).
@@ -168,6 +174,11 @@ func _update_fraction() -> void:
 	progress["fraction"] = minf((finished + _partial) / files.size(), 1.0)
 	progress["bytes"] = total_bytes
 	EventBus.data_progress.emit(progress)
+
+
+## False with --no-data-fetch: only what is already cached is used. Tests override this.
+func _fetch_enabled() -> bool:
+	return not AppConfig.has_cli("no-data-fetch")
 
 
 func _set_dex(new_dex: Dex, source: String) -> void:
