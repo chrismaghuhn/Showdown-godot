@@ -22,15 +22,26 @@ signal password_required(username: String)
 signal signed_out
 ## Something (header status, start screen) asks for the connect / sign-in card.
 signal sign_in_requested
+## A battle choice went out (Connection.choose) or was taken back (/undo).
+signal choice_sent(room_id: String, choice: String)
+signal choice_undone(room_id: String)
 
 # Rooms and chat
 signal room_joined(room_id: String, room_type: String)
 signal room_left(room_id: String)
+## Joining a room failed (|noinit|): it no longer exists, or we may not join it.
+signal join_failed(room_id: String, reason: String)
 signal chat_message(room_id: String, user: String, text: String)
 signal private_message(from: String, to: String, text: String)
 signal popup(text: String)
 ## After a reconnect: how many battles came back with their full log.
 signal battles_restored(count: int)
+## The server's format list arrived (Rooms.formats).
+signal formats_changed
+## |updatesearch|: formats being searched, and running games {room_id: title}.
+signal search_changed(searching: PackedStringArray, games: Dictionary)
+## A battle started or stopped waiting for your choice (BattleState.awaiting_choice).
+signal battle_attention_changed(battle: BattleState)
 
 # Battles
 signal battle_started(battle: BattleState)
@@ -56,6 +67,8 @@ signal screen_changed(screen: StringName)
 # Notifications
 ## {event, title, body, actions: [[label, Callable]], key, persistent}
 signal toast_requested(toast: Dictionary)
+## The notification history (bell in the app header) changed: Notifier.history / unread.
+signal notifications_changed
 ## Withdraw a toast by key (e.g. "your_turn:<room id>") once it was handled.
 signal toast_dismissed(key: String)
 

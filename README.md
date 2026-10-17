@@ -6,8 +6,8 @@
 A **native**, **fully customizable** desktop client for [Pokémon Showdown](https://pokemonshowdown.com),
 built on an **open plugin platform**. Made with Godot 4, by and for the community.
 
-> Status: early skeleton. Connecting, logging in, random battles, game data and plugins work through a
-> developer console. The real UI is not built yet.
+> Status: early, playable. Start screen, sign-in, Random Battles in tabs, reconnecting, notifications,
+> themes and plugins work. The lobby, Teambuilder, chat rooms and replays come next (see milestones).
 
 ## Why another client?
 
@@ -37,7 +37,9 @@ git clone https://github.com/smogon/pokemon-showdown.git ../pokemon-showdown
 # 2. Start it (no login server needed)
 tools/local_server.sh
 
-# 3. Start the client (second terminal), choose "Local server", enter a name, Connect, Search
+# 3. Start the client (second terminal). On the start screen click "Offline" (top right),
+#    "Change server" -> "Local server", choose a name, then "Battle!" (Ctrl+Enter).
+#    The server is remembered for next time.
 tools/run_client.sh
 ```
 
@@ -49,7 +51,7 @@ To develop in the editor, open `client/project.godot` in Godot.
 tools/run_tests.sh     # unit tests (parser, battle state)
 tools/e2e_battle.sh    # two headless clients play a full battle on the local server
 tools/e2e_reconnect.sh # same, but one client loses its connection twice mid-battle
-tools/e2e_sign_in.sh   # signs in and out through the app's sign-in card
+tools/e2e_ui.sh        # UI flows: sign-in card, start screen, battle tabs, rejoin after a restart
 tools/check_data.sh    # loads game data + sample sprites from the configured source
 ```
 
@@ -99,8 +101,14 @@ for battle found, your turn, timer low, challenges, mentions, private messages a
 configurable per event in Settings. See [docs/notifications.md](docs/notifications.md).
 
 Themes: three built-in themes (Midnight Dark, Classic Light, High Contrast), community themes as
-token-only JSON files, runtime switching and UI scaling. Open the **theme gallery** from the dev
-console or with `tools/run_client.sh --screen=theme-gallery`.
+token-only JSON files, runtime switching and UI scaling. Open the **theme gallery** with
+`tools/run_client.sh --screen=theme-gallery`, or turn on *Settings › General › Developer mode* and
+use Ctrl+K.
+
+App shell: a start screen at launch (welcome, the battle in progress with Rejoin, menu 1–5, quick
+battle with Ctrl+Enter, release news), then tabs for Home, Teambuilder and one per battle with a
+"your move" dot. Ctrl+1–9 and Ctrl+Tab switch tabs, Ctrl+W closes one, Ctrl+K opens the command
+menu. The developer console only appears with `--dev` or developer mode.
 
 See [docs/architecture.md](docs/architecture.md) for the layer rules,
 [docs/plugin-api.md](docs/plugin-api.md) for writing plugins and

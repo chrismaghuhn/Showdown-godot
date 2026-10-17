@@ -69,8 +69,8 @@ jobs:
       - name: A client reconnects mid-battle and finishes it
         run: tools/e2e_reconnect.sh gen9randombattle
 
-      - name: Sign in and out through the app's sign-in card
-        run: tools/e2e_sign_in.sh
+      - name: UI flows (sign-in card, start screen, battle tabs, rejoin)
+        run: tools/e2e_ui.sh
 
       - name: Upload server log
         if: failure()
