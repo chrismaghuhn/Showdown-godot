@@ -3,14 +3,17 @@ extends Control
 ## UI scale slider. Used to review themes (built-in and community) and the design system.
 
 var _theme_select: OptionButton
-var _scale_slider: HSlider
-var _scale_label: Label
 var _warnings: Label
 
 
 func _ready() -> void:
 	_build()
 	EventBus.theme_changed.connect(func(_id: String) -> void: _refresh_header())
+	# Screens stay alive: coming back picks up themes added to the themes folder meanwhile.
+	visibility_changed.connect(func() -> void:
+		if visible:
+			Themes.discover()
+			_refresh_header())
 	_refresh_header()
 
 
@@ -45,18 +48,7 @@ func _build() -> void:
 		Themes.apply(_theme_select.get_item_metadata(index)))
 	header.add_child(_theme_select)
 	header.add_child(_label("UI scale", &"CapsLabel", true))
-	_scale_slider = HSlider.new()
-	_scale_slider.min_value = Themes.SCALE_MIN * 100
-	_scale_slider.max_value = Themes.SCALE_MAX * 100
-	_scale_slider.step = Themes.SCALE_STEP * 100
-	_scale_slider.custom_minimum_size.x = 160
-	_scale_slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	_scale_slider.drag_ended.connect(func(_changed: bool) -> void: Themes.set_ui_scale(_scale_slider.value / 100.0))
-	_scale_slider.value_changed.connect(func(v: float) -> void: _scale_label.text = "%d %%" % roundi(v))
-	header.add_child(_scale_slider)
-	_scale_label = _label("100 %", &"MonoLabel")
-	_scale_label.custom_minimum_size.x = 52
-	header.add_child(_scale_label)
+	header.add_child(UiScaleControl.new(160))
 	var back := _button("Back to console", &"GhostButton")
 	back.pressed.connect(func() -> void: EventBus.navigation_requested.emit(&"dev-console"))
 	header.add_child(back)
@@ -98,8 +90,6 @@ func _refresh_header() -> void:
 		_theme_select.set_item_disabled(index, not str(entry["error"]).is_empty())
 		if entry["id"] == Themes.theme_id:
 			_theme_select.select(index)
-	_scale_slider.set_value_no_signal(Themes.ui_scale * 100.0)
-	_scale_label.text = "%d %%" % roundi(Themes.ui_scale * 100.0)
 	var warnings := Themes.tokens.warnings if Themes.tokens != null else PackedStringArray()
 	_warnings.visible = not warnings.is_empty()
 	_warnings.text = "Theme warnings:\n• " + "\n• ".join(warnings)

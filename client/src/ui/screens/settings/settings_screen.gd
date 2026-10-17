@@ -18,6 +18,7 @@ var _current := ""
 func _ready() -> void:
 	_build()
 	EventBus.theme_changed.connect(func(_id: String) -> void: _rebuild_current.call_deferred())
+	visibility_changed.connect(_on_visibility_changed)
 	var start_page := AppConfig.cli("settings-page", "general")
 	show_page(start_page if start_page in PAGES else "general")
 
@@ -72,6 +73,7 @@ func _build() -> void:
 	_file_dialog.use_native_dialog = true
 	_file_dialog.filters = PackedStringArray(["*.wav, *.ogg, *.mp3 ; " + tr("Sounds")])
 	_file_dialog.file_selected.connect(_on_sound_file_selected)
+	_file_dialog.canceled.connect(_rebuild_current)
 	add_child(_file_dialog)
 
 
@@ -80,6 +82,12 @@ func show_page(page: String) -> void:
 	for id: String in _nav_buttons:
 		_nav_buttons[id].set_pressed_no_signal(id == page)
 	_rebuild_current()
+
+
+## Screens stay alive: coming back picks up themes added to the themes folder meanwhile.
+func _on_visibility_changed() -> void:
+	if visible and _current == "appearance":
+		_rebuild_current()
 
 
 func _rebuild_current() -> void:
@@ -125,6 +133,7 @@ func _config_switch(section: String, key: String, default: bool, title: String, 
 
 func _build_appearance() -> void:
 	_page_header(tr("Appearance"), tr("Themes only change design tokens. Community themes go into the themes folder."))
+	Themes.discover()
 	var box := _section(tr("Theme"))
 	var themes := OptionButton.new()
 	for entry in Themes.available_themes():
@@ -142,20 +151,7 @@ func _build_appearance() -> void:
 	folder.pressed.connect(func() -> void: OS.shell_open(ProjectSettings.globalize_path(Themes.USER_DIR)))
 	box.add_child(_setting_row(tr("Community themes"), tr("Put .sdtheme.json files here."), folder))
 
-	var scale_row := HBoxContainer.new()
-	var slider := HSlider.new()
-	slider.min_value = Themes.SCALE_MIN * 100
-	slider.max_value = Themes.SCALE_MAX * 100
-	slider.step = Themes.SCALE_STEP * 100
-	slider.value = Themes.ui_scale * 100
-	slider.custom_minimum_size.x = 200
-	slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	var value := _label("%d %%" % roundi(slider.value), &"MonoLabel")
-	slider.value_changed.connect(func(v: float) -> void: value.text = "%d %%" % roundi(v))
-	slider.drag_ended.connect(func(_c: bool) -> void: Themes.set_ui_scale(slider.value / 100.0))
-	scale_row.add_child(slider)
-	scale_row.add_child(value)
-	box.add_child(_setting_row(tr("UI scale"), tr("Makes everything larger or smaller."), scale_row))
+	box.add_child(_setting_row(tr("UI scale"), tr("Makes everything larger or smaller."), UiScaleControl.new()))
 	var reduce := CheckButton.new()
 	reduce.button_pressed = Themes.reduce_motion
 	reduce.toggled.connect(Themes.set_reduce_motion)
