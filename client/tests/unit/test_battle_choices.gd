@@ -52,3 +52,28 @@ func test_timer_countdown_keeps_unknown_seconds() -> void:
 	assert_eq(BattleChoices.count_down(-1), -1, "unknown stays unknown")
 	assert_eq(BattleChoices.count_down(140), 139, "counts down")
 	assert_eq(BattleChoices.count_down(0), 0, "stops at zero")
+
+
+func test_timer_resyncs_on_every_update() -> void:
+	var line := "|inactive|Time left: 140 sec this turn | 280 sec total"
+	var battle := BattleState.new("battle-test")
+	assert_true(BattleChoices.needs_timer_resync([], battle), "first sync")
+	battle.apply(PSParser.parse_line("battle-test", line))
+	assert_true(BattleChoices.needs_timer_resync([], battle), "first update")
+	var seen := BattleChoices.timer_sync_key(battle)
+	assert_true(not BattleChoices.needs_timer_resync(seen, battle), "no new update: keep counting down")
+	battle.apply(PSParser.parse_line("battle-test", line))
+	assert_true(BattleChoices.needs_timer_resync(seen, battle), "same values again")
+	seen = BattleChoices.timer_sync_key(battle)
+	var other := BattleState.new("battle-other")
+	other.apply(PSParser.parse_line("battle-other", line))
+	other.apply(PSParser.parse_line("battle-other", line))
+	assert_true(BattleChoices.needs_timer_resync(seen, other), "another battle with the same values")
+
+
+func test_timer_button_text() -> void:
+	assert_eq(BattleChoices.timer_button(true, 140, 280),
+		PackedStringArray(["2:20 / 4:40", "Your time this turn / in total. Click to turn the timer off."]), "own clock")
+	assert_eq(BattleChoices.timer_button(true, -1, -1),
+		PackedStringArray(["Timer", "The battle timer is on. Click to turn it off."]), "on, seconds unknown")
+	assert_eq(BattleChoices.timer_button(false, -1, -1), PackedStringArray(["Timer", "Start the battle timer"]), "off")

@@ -75,16 +75,18 @@ func _init() -> void:
 	resized.connect(func() -> void: _hotkey.position.x = size.x - _hotkey.size.x - 6)
 
 
-## own: exact HP; otherwise percent. tint: the Pokémon's first type color.
-func show_pokemon(pokemon: BattlePokemon, own: bool, tint: Color, hotkey := "") -> void:
+## own: exact HP; otherwise percent. tint: the Pokémon's first type color. revivable: fainted,
+## but Revival Blessing can pick it, so it doesn't look disabled.
+func show_pokemon(pokemon: BattlePokemon, own: bool, tint: Color, hotkey := "", revivable := false) -> void:
 	mon = pokemon
+	var dimmed := pokemon.fainted and not revivable
 	_initials.text = pokemon.species.left(2)
 	var mini_box := (_mini.get_theme_stylebox("panel") as StyleBoxFlat).duplicate() as StyleBoxFlat
 	if mini_box != null:
-		mini_box.bg_color = Color(tint, 0.25) if not pokemon.fainted else Color.TRANSPARENT
+		mini_box.bg_color = Color(tint, 0.25) if not dimmed else Color.TRANSPARENT
 		_mini.add_theme_stylebox_override("panel", mini_box)
 	_name.text = pokemon.name
-	_name.theme_type_variation = &"SlotNameLabelDisabled" if pokemon.fainted else &"SlotNameLabel"
+	_name.theme_type_variation = &"SlotNameLabelDisabled" if dimmed else &"SlotNameLabel"
 	_bar.percent = pokemon.hp_percent()
 	_bar.visible = not pokemon.fainted
 	_meta.text = tr("Fainted") if pokemon.fainted else ("%d/%d" % [pokemon.hp, pokemon.max_hp] if own else "%d%%" % roundi(pokemon.hp_percent()))

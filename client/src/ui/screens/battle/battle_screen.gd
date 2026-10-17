@@ -620,7 +620,7 @@ func _refresh_choices(mine: BattleSide, my_active: BattlePokemon, opp_active: Ba
 		_choice_title.text = tr("Choose your lead")
 		_choice_note.text = ""
 	elif force_switch:
-		_choice_title.text = tr("Choose a Pokémon to send in")
+		_choice_title.text = tr("Choose a Pokémon to revive") if BattleChoices.is_reviving(_request) else tr("Choose a Pokémon to send in")
 		_choice_note.text = ""
 	else:
 		_choice_title.text = tr("What will %s do?") % (my_active.name if my_active != null else "?")
@@ -675,7 +675,7 @@ func _refresh_choices(mine: BattleSide, my_active: BattlePokemon, opp_active: Ba
 		var species: DexSpecies = dex.get_species(mon.species) if dex != null else null
 		var tint := Themes.color("color.type.%s.bg" % species.types[0].to_lower()) if species != null else Themes.color("color.surface.hover")
 		var can_switch: bool = choosing and BattleChoices.can_switch_to(_request, mon)
-		slot.show_pokemon(mon, true, tint, "Shift+%d" % (i + 1) if can_switch else "")
+		slot.show_pokemon(mon, true, tint, "Shift+%d" % (i + 1) if can_switch else "", can_switch and mon.fainted)
 		slot.disabled = not (can_switch or (team_preview and choosing))
 		slot.modulate.a = 0.6 if (_waiting and not mon.active) else 1.0
 		var shown := mon
@@ -697,23 +697,14 @@ func _chosen_text(active_req: Dictionary, dex: Dex) -> String:
 func _update_timer_button() -> void:
 	if battle == null:
 		return
-	# Resync on every "Time left" message, also when it repeats the last values.
-	var seen := [battle, battle.timer_updates]
-	if seen != _timer_seen:
-		_timer_seen = seen
+	if BattleChoices.needs_timer_resync(_timer_seen, battle):
+		_timer_seen = BattleChoices.timer_sync_key(battle)
 		_timer_turn = battle.timer_turn_seconds
 		_timer_total = battle.timer_total_seconds
-	if battle.timer_on and _timer_turn >= 0:
-		_timer_button.text = "%s / %s" % [_clock(_timer_turn), _clock(_timer_total)]
-		_timer_button.tooltip_text = tr("Your time this turn / in total. Click to turn the timer off.")
-	else:
-		_timer_button.text = tr("Timer")
-		_timer_button.tooltip_text = tr("Start the battle timer")
+	var shown := BattleChoices.timer_button(battle.timer_on, _timer_turn, _timer_total)
+	_timer_button.text = shown[0]
+	_timer_button.tooltip_text = shown[1]
 	_timer_button.disabled = battle.ended
-
-
-static func _clock(seconds: int) -> String:
-	return "%d:%02d" % [seconds / 60, seconds % 60]
 
 
 ## Shows or hides all choice controls; _refresh_choices() then hides what doesn't apply.
