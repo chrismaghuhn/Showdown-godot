@@ -152,11 +152,12 @@ func _on_message(msg: PSMessage) -> void:
 			# Rejoining after the choice went out: the request is replayed, the choice too.
 			_set_attention(room_id, false)
 		"error":
-			# The server rejected the choice and waits for another one (no new |request|).
+			# The server rejected the choice and waits for another one (no new |request|); after
+			# "Can't undo" the first choice stands.
 			var rejected: BattleState = battles.get(room_id)
 			if rejected != null and msg.arg(0).begins_with("[Invalid choice]") and not rejected.ended \
 					and not rejected.request.is_empty() and not rejected.request.get("wait", false):
-				_set_attention(room_id, true)
+				_set_attention(room_id, not msg.arg(0).begins_with("[Invalid choice] Can't undo"))
 		"updatesearch":
 			_on_updatesearch(msg.arg(0))
 			if _restore_active:
