@@ -40,6 +40,13 @@ func animate_to(target: float) -> void:
 	_tween.tween_property(self, "percent", target, duration)
 
 
+## Jumps to `value` and stops a running animate_to(), which would overwrite it otherwise.
+func set_instant(value: float) -> void:
+	if _tween != null:
+		_tween.kill()
+	percent = value
+
+
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_THEME_CHANGED:
 		update_minimum_size()
