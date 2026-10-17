@@ -222,6 +222,16 @@ func apply_request(req: Dictionary) -> void:
 ## Sets my_side from the player names while it is still unknown, i.e. before the first
 ## |request| (at battle start, and when (re)joining a battle in progress, where the server replays
 ## the whole log first). Spectators don't match any player and keep "".
+## The other player's name ("" until known). Spectators see p1's opponent.
+func opponent_name() -> String:
+	return side("p1" if my_side == "p2" else "p2").player_name
+
+
+## "[Gen 9] OU", or the format id from the room id until |tier| arrives.
+func display_format() -> String:
+	return format if not format.is_empty() else room_id.get_slice("-", 1)
+
+
 func claim_side_by_name(username: String) -> void:
 	if not my_side.is_empty() or username.is_empty():
 		return

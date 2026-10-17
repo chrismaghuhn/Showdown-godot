@@ -74,7 +74,7 @@ func search(format_id: String) -> void:
 
 func cancel_search() -> void:
 	_pending_search = ""
-	if Connection.state == Connection.State.CONNECTED:
+	if not searching.is_empty() and Connection.state == Connection.State.CONNECTED:
 		Connection.send("", "/cancelsearch")
 
 
@@ -129,6 +129,7 @@ func _on_message(msg: PSMessage) -> void:
 				_finish_restore(_restore_gen)
 			return
 		"noinit":
+			EventBus.join_failed.emit(room_id, msg.arg(1, msg.arg(0)))
 			# |noinit|nonexistent|... - the battle room is gone (expired on the server).
 			if _restoring.has(room_id) and msg.arg(0) == "nonexistent" and battles.has(room_id):
 				# Anything still showing it (battle screen, tab) sees it as over.
@@ -146,6 +147,15 @@ func _on_message(msg: PSMessage) -> void:
 		"formats":
 			formats = FormatList.parse(msg.raw.trim_prefix("|formats|"))
 			EventBus.formats_changed.emit()
+		"sentchoice":
+			# Rejoining after the choice went out: the request is replayed, the choice too.
+			_set_attention(room_id, false)
+		"error":
+			# The server rejected the choice and waits for another one (no new |request|).
+			var rejected: BattleState = battles.get(room_id)
+			if rejected != null and msg.arg(0).begins_with("[Invalid choice]") and not rejected.ended \
+					and not rejected.request.is_empty() and not rejected.request.get("wait", false):
+				_set_attention(room_id, true)
 		"updatesearch":
 			_on_updatesearch(msg.arg(0))
 			if _restore_active:

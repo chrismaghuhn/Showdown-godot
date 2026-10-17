@@ -1,3 +1,4 @@
+class_name BattleScreen
 extends Control
 ## Battle screen, layout B "Desktop" (design canvas: "B · Desktop — choose move / waiting").
 ##

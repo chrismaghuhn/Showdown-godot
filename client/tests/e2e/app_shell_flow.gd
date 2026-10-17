@@ -81,9 +81,12 @@ func _process(delta: float) -> void:
 		7:
 			var battle := Rooms.get_battle(_room)
 			var card: RunningBattleCard = _find(_main, RunningBattleCard)
-			if battle != null and card != null and card.visible and card.room_id == _room:
+			# Wait for |sentchoice| too: it follows the replayed |request|.
+			if battle != null and card != null and card.visible and card.room_id == _room and not battle.awaiting_choice:
 				_check(battle.restored, "the server sent the running battle back after the restart")
 				_check(_main.current == &"start", "it waits on the start screen")
+				_check(not battle.awaiting_choice and not card._pill.visible,
+					"the move chosen before the restart counts: no \"Your move\"")
 				_press(KEY_ENTER)
 				_step = 8
 		8:

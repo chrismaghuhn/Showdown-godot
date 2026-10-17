@@ -50,6 +50,9 @@ var _bell := NotificationBell.new()
 var _account := AccountButton.new()
 ## A battle to show as soon as its room arrives (rejoining a game after a restart).
 var _pending_open := ""
+## Battle rooms the user closed; their tab goes when the server confirms (|deinit|). Other
+## rooms that go away keep their tab, shown as over.
+var _leaving := {}
 var _close_dialog := ConfirmationDialog.new()
 var _closing_room := ""
 
@@ -63,6 +66,7 @@ func _ready() -> void:
 			_update_battle_tab(battle))
 	EventBus.battle_attention_changed.connect(_update_battle_tab)
 	EventBus.room_left.connect(_on_room_left)
+	EventBus.join_failed.connect(_on_join_failed)
 	EventBus.plugin_paused.connect(_on_plugin_paused)
 	EventBus.connection_state_changed.connect(func(_s: int) -> void: _refresh_header())
 	tabs.tab_selected.connect(show_screen)
@@ -132,7 +136,7 @@ func _build() -> void:
 	_close_dialog.title = tr("Forfeit and close?")
 	_close_dialog.dialog_text = tr("This battle is still running. Closing it forfeits the battle.")
 	_close_dialog.ok_button_text = tr("Forfeit and close")
-	_close_dialog.confirmed.connect(func() -> void: Rooms.leave(_closing_room, true))
+	_close_dialog.confirmed.connect(func() -> void: _leave_battle(_closing_room, true))
 	add_child(_close_dialog)
 
 
@@ -199,10 +203,12 @@ func show_screen(id: StringName) -> void:
 	var text := str(id)
 	if text.begins_with("battle:"):
 		var room := text.trim_prefix("battle:")
-		if not Rooms.battles.has(room):
+		if not Rooms.battles.has(room) and not _screens.has(id):
 			# A game still running on the server (after a restart): join, open on arrival.
-			_pending_open = room
-			Rooms.rejoin(room)
+			# Anything else (an old notification about a closed battle) has nothing to open.
+			if Rooms.games.has(room):
+				_pending_open = room
+				Rooms.rejoin(room)
 			return
 	elif not id in PAGES and not id in DEV_SCREENS:
 		push_warning("Unknown screen '%s'" % id)
@@ -229,13 +235,15 @@ func close_tab(id: StringName) -> void:
 	if text.begins_with("battle:"):
 		var room := text.trim_prefix("battle:")
 		var battle := Rooms.get_battle(room)
-		if battle != null and not battle.ended and not battle.my_side.is_empty() \
-				and Connection.state == Connection.State.CONNECTED:
+		if battle == null:
+			# Gone from the server already: just close the tab.
+			_drop_screen(id)
+			return
+		if not battle.ended and not battle.my_side.is_empty() and Connection.state == Connection.State.CONNECTED:
 			_closing_room = room
 			_close_dialog.popup_centered()
 			return
-		# The server confirms with |deinit| -> room_left -> the tab goes.
-		Rooms.leave(room)
+		_leave_battle(room, false)
 		return
 	_drop_screen(id)
 
@@ -246,8 +254,8 @@ func _screen(id: StringName) -> Control:
 	var screen: Control
 	var text := str(id)
 	if text.begins_with("battle:"):
-		var battle_screen: Control = BattleScreenScene.instantiate()
-		battle_screen.set("room_id", text.trim_prefix("battle:"))
+		var battle_screen: BattleScreen = BattleScreenScene.instantiate()
+		battle_screen.bind(text.trim_prefix("battle:"))
 		screen = battle_screen
 	else:
 		match id:
@@ -293,18 +301,36 @@ func _first_page_tab() -> StringName:
 
 func _drop_screen(id: StringName) -> void:
 	var was_current := current == id
-	var index := tabs.ids().find(id)
+	var before := tabs.ids()
 	tabs.remove_tab(id)
 	if _screens.has(id):
 		_screens[id].queue_free()
 		_screens.erase(id)
 	if was_current:
-		var ids := tabs.ids()
-		show_screen(ids[clampi(index - 1, 0, ids.size() - 1)] if not ids.is_empty() else &"home")
+		show_screen(next_tab_after_closing(before, id))
+
+
+## Where to go when the shown tab closes: the next battle for a battle tab (else Home), the
+## tab to the left for a page.
+static func next_tab_after_closing(ids: Array[StringName], closed: StringName) -> StringName:
+	var index := ids.find(closed)
+	var rest := ids.filter(func(t: StringName) -> bool: return t != closed)
+	if str(closed).begins_with("battle:"):
+		var battles := ids.filter(func(t: StringName) -> bool: return str(t).begins_with("battle:"))
+		var position := battles.find(closed)
+		battles.erase(closed)
+		return battles[mini(position, battles.size() - 1)] if not battles.is_empty() else &"home"
+	if index > 0 and not rest.is_empty():
+		return rest[mini(index - 1, rest.size() - 1)]
+	return &"home"
 
 
 func _scroll_to_tab(id: StringName) -> void:
-	await get_tree().process_frame
+	# After layout, once the new tab has its size.
+	_ensure_tab_visible.call_deferred(id)
+
+
+func _ensure_tab_visible(id: StringName) -> void:
 	var index := tabs.ids().find(id)
 	if index >= 0 and index < tabs.get_child_count():
 		_tab_scroll.ensure_control_visible(tabs.get_child(index))
@@ -355,10 +381,31 @@ func _on_battle_started(battle: BattleState) -> void:
 		show_screen(id)
 
 
+func _leave_battle(room_id: String, forfeit: bool) -> void:
+	_leaving[room_id] = true
+	Rooms.leave(room_id, forfeit)
+
+
 func _on_room_left(room_id: String) -> void:
 	var id := StringName("battle:" + room_id)
-	if tabs.has_tab(id) or _screens.has(id):
+	if _leaving.erase(room_id):
 		_drop_screen(id)
+		return
+	# The server dropped the room (it expired): keep the tab, shown as over, until closed.
+	if _screens.has(id):
+		var battle: BattleState = (_screens[id] as BattleScreen).battle
+		if battle != null:
+			battle.ended = true
+			battle.awaiting_choice = false
+			tabs.update_tab(id, battle_tab_spec(battle))
+
+
+func _on_join_failed(room_id: String, reason: String) -> void:
+	if room_id != _pending_open:
+		return
+	_pending_open = ""
+	EventBus.toast_requested.emit({"event": "battle_ended", "title": tr("Couldn’t open the battle"),
+		"body": reason if not reason.is_empty() else tr("It has ended or no longer exists.")})
 
 
 func _update_battle_tab(battle: BattleState) -> void:
@@ -370,9 +417,8 @@ func _update_battle_tab(battle: BattleState) -> void:
 ## Tab content for a battle (design: "● Mirebloom  OU · T7"): {title, meta, dot, tooltip}.
 static func battle_tab_spec(battle: BattleState) -> Dictionary:
 	var mine := battle.my_side if not battle.my_side.is_empty() else "p1"
-	var theirs := "p2" if mine == "p1" else "p1"
-	var opponent := battle.side(theirs).player_name
-	var format := short_format(battle.format if not battle.format.is_empty() else battle.room_id.get_slice("-", 1))
+	var opponent := battle.opponent_name()
+	var format := short_format(battle.display_format())
 	var meta := format
 	var dot := ""
 	var state := ""
@@ -425,6 +471,9 @@ func _input(event: InputEvent) -> void:
 		return
 	var key := event as InputEventKey
 	if not key.ctrl_pressed or key.alt_pressed or key.meta_pressed:
+		return
+	# The connection cards are modal: keys there belong to them.
+	if connection_overlay.current_card() != &"":
 		return
 	match key.keycode:
 		KEY_K:

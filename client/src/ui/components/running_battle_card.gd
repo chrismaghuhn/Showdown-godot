@@ -80,9 +80,9 @@ func show_game(game_room: String, title: String) -> void:
 static func describe(battle: BattleState) -> Dictionary:
 	var mine := battle.my_side if not battle.my_side.is_empty() else "p1"
 	var theirs := "p2" if mine == "p1" else "p1"
-	var opponent := battle.side(theirs).player_name
+	var opponent := battle.opponent_name()
 	var parts := PackedStringArray()
-	parts.append(battle.format if not battle.format.is_empty() else battle.room_id.get_slice("-", 1))
+	parts.append(battle.display_format())
 	if battle.turn > 0:
 		parts.append(_t("Turn %d") % battle.turn)
 	var my_mon := battle.side(mine).active_pokemon()

@@ -209,10 +209,8 @@ func _on_chat_message(room_id: String, user: String, text: String) -> void:
 
 
 func _battle_line(battle: BattleState) -> String:
-	var opponent_id := "p2" if battle.my_side != "p2" else "p1"
-	var opponent := battle.side(opponent_id).player_name
-	var format := battle.format if not battle.format.is_empty() else battle.room_id.get_slice("-", 1)
-	return tr("vs %s · %s") % [opponent, format] if not opponent.is_empty() else format
+	var opponent := battle.opponent_name()
+	return tr("vs %s · %s") % [opponent, battle.display_format()] if not opponent.is_empty() else battle.display_format()
 
 
 func _on_battle_screen(battle: BattleState) -> bool:

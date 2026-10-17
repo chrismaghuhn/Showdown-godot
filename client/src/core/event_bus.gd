@@ -29,6 +29,8 @@ signal choice_undone(room_id: String)
 # Rooms and chat
 signal room_joined(room_id: String, room_type: String)
 signal room_left(room_id: String)
+## Joining a room failed (|noinit|): it no longer exists, or we may not join it.
+signal join_failed(room_id: String, reason: String)
 signal chat_message(room_id: String, user: String, text: String)
 signal private_message(from: String, to: String, text: String)
 signal popup(text: String)
