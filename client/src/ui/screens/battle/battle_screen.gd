@@ -61,9 +61,12 @@ func _ready() -> void:
 	EventBus.battle_ended.connect(_on_battle_ended)
 	EventBus.chat_message.connect(_on_chat_message)
 	EventBus.plugin_panel_added.connect(_on_plugin_panel_added)
+	EventBus.plugin_paused.connect(_on_plugin_paused)
 	EventBus.data_loaded.connect(func(_dex: Dex) -> void: _queue_refresh())
 	for entry in Plugins.get_panel_entries(&"sidebar"):
 		_add_plugin_panel(entry["plugin_id"], entry["control"])
+	for plugin_id: String in Plugins.paused:
+		_on_plugin_paused(plugin_id, Plugins.paused[plugin_id])
 	var ticker := Timer.new()
 	ticker.wait_time = 1.0
 	ticker.autostart = true
@@ -330,12 +333,53 @@ func _add_plugin_panel(plugin_id: String, control: Control) -> void:
 		control.get_parent().remove_child(control)
 	margin.add_child(control)
 	panel.body.add_child(margin)
+	panel.set_meta("plugin_id", plugin_id)
 	_aside.add_child(panel)
+	# A disabled or paused plugin frees its control; its panel goes with it.
+	control.tree_exiting.connect(func() -> void:
+		if is_instance_valid(panel):
+			panel.queue_free()
+			_update_plugin_count.call_deferred())
+	_remove_paused_box(plugin_id)
 	_update_plugin_count()
 
 
+## Design: "Damage Calc paused" in place of the plugin's panel.
+func _on_plugin_paused(plugin_id: String, reason: String) -> void:
+	_remove_paused_box(plugin_id)
+	var manifest := Plugins.get_manifest(plugin_id)
+	var title := manifest.name if manifest != null else plugin_id
+	var box := ErrorBox.plugin(tr("%s paused") % title, tr("It caused an error: %s. The battle is not affected.") % reason, [
+		[tr("Reload plugin"), func() -> void:
+			_remove_paused_box(plugin_id)
+			Plugins.reload(plugin_id)],
+		[tr("Disable"), func() -> void:
+			Plugins.set_enabled_in_settings(plugin_id, false)
+			_remove_paused_box(plugin_id)],
+	])
+	box.set_meta("paused_plugin", plugin_id)
+	var index := -1
+	for child in _aside.get_children():
+		if child.get_meta("plugin_id", "") == plugin_id:
+			index = child.get_index()
+	_aside.add_child(box)
+	if index >= 0:
+		_aside.move_child(box, index)
+	_update_plugin_count()
+
+
+func _remove_paused_box(plugin_id: String) -> void:
+	for child in _aside.get_children():
+		if child.get_meta("paused_plugin", "") == plugin_id:
+			child.queue_free()
+	_update_plugin_count.call_deferred()
+
+
 func _update_plugin_count() -> void:
-	var count := _aside.get_child_count() - 2
+	var count := 0
+	for child in _aside.get_children():
+		if (child is DockPanel or child is ErrorBox) and not child.is_queued_for_deletion():
+			count += 1
 	_plugin_count.text = tr("%d plugins") % count if count != 1 else tr("1 plugin")
 	_plugin_empty.visible = count == 0
 
@@ -343,6 +387,9 @@ func _update_plugin_count() -> void:
 # --- Events -------------------------------------------------------------------------------
 
 func _on_battle_started(started: BattleState) -> void:
+	# After a reconnect every battle comes back; keep showing the one that was on screen.
+	if started.restored and battle != null and battle.room_id != started.room_id and not battle.ended:
+		return
 	battle = started
 	_builder = BattleLogBuilder.new()
 	_log.clear()
@@ -393,6 +440,11 @@ func _on_chat_message(room_id: String, user: String, text: String) -> void:
 
 
 func _on_tick() -> void:
+	# A paused plugin may be reloaded from its toast; drop its box then.
+	for child in _aside.get_children():
+		var paused_id: String = child.get_meta("paused_plugin", "")
+		if not paused_id.is_empty() and not Plugins.paused.has(paused_id):
+			_remove_paused_box(paused_id)
 	if battle == null or not battle.timer_on or _waiting or battle.ended:
 		return
 	_timer_turn = maxi(_timer_turn - 1, 0)

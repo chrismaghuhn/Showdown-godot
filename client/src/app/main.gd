@@ -1,5 +1,6 @@
 extends Control
-## App entry point: a 40px app header with screen tabs, and the screens below it.
+## App entry point: a 40px app header with screen tabs and the connection status, the
+## reconnect banner and download progress, the screens, and the connection cards on top.
 ## Switches screens on EventBus.navigation_requested; a started battle opens the battle tab.
 ## Start screen: --screen=<id> (default dev-console).
 ## Must stay a Control: Godot only passes the window's theme down through Control/Window
@@ -20,6 +21,11 @@ var _content := Control.new()
 var _tabs := TabBar.new()
 var _tab_ids: Array[StringName] = []
 var _syncing_tabs := false
+## The battle the battle tab shows (restored battles don't take its place).
+var _tab_room := ""
+var connection_overlay := ConnectionOverlay.new()
+var connection_banner := ConnectionBanner.new()
+var data_panel := DataProgressPanel.new()
 
 
 func _ready() -> void:
@@ -27,6 +33,7 @@ func _ready() -> void:
 	EventBus.navigation_requested.connect(show_screen)
 	EventBus.battle_started.connect(_on_battle_started)
 	EventBus.battle_updated.connect(_on_battle_updated)
+	EventBus.plugin_paused.connect(_on_plugin_paused)
 	show_screen(StringName(AppConfig.cli("screen", "dev-console")))
 	add_child(DevAutomation.new())
 
@@ -52,8 +59,14 @@ func _build_header() -> void:
 	row.add_child(_tabs)
 	for id: StringName in [&"dev-console", &"theme-gallery", &"settings"]:
 		_add_tab(id, TAB_TITLES[id])
+	row.add_child(ConnectionStatus.new())
+	# App states (design: "03 · Motion & app states"): reconnect banner and first-launch
+	# download progress above the screens, connection cards over everything.
+	column.add_child(connection_banner)
+	column.add_child(data_panel)
 	_content.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	column.add_child(_content)
+	add_child(connection_overlay)
 	# Toasts float above every screen, bottom-right (design: max 3, newest on top).
 	var toasts := ToastStack.new()
 	toasts.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
@@ -82,6 +95,16 @@ func show_screen(screen_id: StringName) -> void:
 	EventBus.screen_changed.emit(screen_id)
 
 
+func _on_plugin_paused(plugin_id: String, reason: String) -> void:
+	var manifest := Plugins.get_manifest(plugin_id)
+	EventBus.toast_requested.emit({
+		"event": "plugin_paused", "key": "plugin_paused:" + plugin_id,
+		"title": tr("%s paused") % (manifest.name if manifest != null else plugin_id),
+		"body": tr("It caused an error: %s. The battle is not affected.") % reason,
+		"actions": [[tr("Reload plugin"), func() -> void: Plugins.reload(plugin_id)], [tr("Keep paused"), Callable()]],
+	})
+
+
 func _add_tab(screen_id: StringName, title: String) -> void:
 	_tab_ids.append(screen_id)
 	_tabs.add_tab(tr(title))
@@ -92,13 +115,20 @@ func _on_tab_changed(index: int) -> void:
 		show_screen(_tab_ids[index])
 
 
-func _on_battle_started(_battle: BattleState) -> void:
-	show_screen(&"battle")
-	_update_battle_tab(_battle)
+func _on_battle_started(battle: BattleState) -> void:
+	# A battle restored after a reconnect stays in the background unless it's the one shown.
+	if battle.restored and not _tab_room.is_empty() and battle.room_id != _tab_room:
+		return
+	_tab_room = battle.room_id
+	if not battle.restored:
+		show_screen(&"battle")
+	elif not &"battle" in _tab_ids:
+		_add_tab(&"battle", TAB_TITLES[&"battle"])
+	_update_battle_tab(battle)
 
 
 func _on_battle_updated(battle: BattleState, msg: PSMessage) -> void:
-	if msg.type in ["turn", "player", "tier", "win", "tie"]:
+	if battle.room_id == _tab_room and msg.type in ["turn", "player", "tier", "win", "tie"]:
 		_update_battle_tab(battle)
 
 

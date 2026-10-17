@@ -21,20 +21,34 @@ const DATA_FILES := {
 	"abilities": "abilities.js",
 	"typechart": "typechart.js",
 }
+const DATA_LABELS := {
+	"pokedex": "Pokédex", "moves": "Moves", "items": "Items", "abilities": "Abilities", "typechart": "Type chart",
+}
 const DATA_MAX_AGE := 24 * 3600
 const SPRITE_MAX_AGE := 30 * 24 * 3600
 
 ## The current Dex, or null until data was loaded once.
 var dex: Dex
+## Download progress of the data files (also sent as EventBus.data_progress):
+## {fraction: 0..1, bytes: int, files: [{key, label, state}]}, state "pending", "loading",
+## "done" or "failed". Empty until the first fetch starts.
+var progress := {}
+## True while the data files are being fetched or revalidated.
+var loading := false
 
 var _cache := HttpCache.new()
 var _textures := {}
 var _changed := false
+## key -> downloaded bytes of the running fetch
+var _file_bytes := {}
+## share of the file currently downloading (0..1)
+var _partial := 0.0
 
 
 func _ready() -> void:
 	add_child(_cache)
 	_cache.updated.connect(func(_url: String) -> void: _changed = true)
+	_cache.progress.connect(_on_download_progress)
 	load_data()
 
 
@@ -61,9 +75,14 @@ func load_data() -> void:
 		return
 
 	_changed = false
+	loading = true
+	_start_progress()
 	var fetched := {}
 	for key: String in DATA_FILES:
+		_set_file_state(key, "loading")
 		fetched[key] = await _cache.fetch(data_url() + DATA_FILES[key], DATA_MAX_AGE)
+		_set_file_state(key, "done" if not (fetched[key] as PackedByteArray).is_empty() else "failed")
+	loading = false
 	if dex == null or _changed:
 		var fresh := _build_dex(fetched)
 		if fresh != null:
@@ -94,6 +113,53 @@ func get_sprite(species: String, back := false, shiny := false) -> Texture2D:
 	var texture := ImageTexture.create_from_image(image)
 	_textures[url] = texture
 	return texture
+
+
+func _start_progress() -> void:
+	var files: Array[Dictionary] = []
+	for key: String in DATA_FILES:
+		files.append({"key": key, "label": DATA_LABELS.get(key, key), "state": "pending"})
+	progress = {"fraction": 0.0, "bytes": 0, "files": files}
+	_file_bytes.clear()
+	_partial = 0.0
+	EventBus.data_progress.emit(progress)
+
+
+func _set_file_state(key: String, file_state: String) -> void:
+	for file: Dictionary in progress.get("files", []):
+		if file["key"] == key:
+			file["state"] = file_state
+	if file_state != "loading":
+		_partial = 0.0
+	_update_fraction()
+
+
+func _on_download_progress(url: String, downloaded: int, total: int) -> void:
+	if not loading:
+		return
+	for key: String in DATA_FILES:
+		if url == data_url() + DATA_FILES[key]:
+			_file_bytes[key] = downloaded
+			_partial = clampf(float(downloaded) / total, 0.0, 1.0) if total > 0 else 0.0
+			_update_fraction()
+			return
+
+
+## Progress counts finished files, plus the share of the one downloading (if its size is known).
+func _update_fraction() -> void:
+	var files: Array = progress.get("files", [])
+	if files.is_empty():
+		return
+	var finished := 0
+	for file: Dictionary in files:
+		if file["state"] == "done" or file["state"] == "failed":
+			finished += 1
+	var total_bytes := 0
+	for key: String in _file_bytes:
+		total_bytes += int(_file_bytes[key])
+	progress["fraction"] = minf((finished + _partial) / files.size(), 1.0)
+	progress["bytes"] = total_bytes
+	EventBus.data_progress.emit(progress)
 
 
 func _set_dex(new_dex: Dex, source: String) -> void:

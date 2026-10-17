@@ -43,7 +43,7 @@ func _plugin_disable() -> void:
 
 | Event | Arguments |
 |---|---|
-| `connection_state_changed` | `state: int` |
+| `connection_state_changed` | `state: int` – 0 disconnected, 1 connecting, 2 connected, 3 waiting for the next reconnect attempt |
 | `logged_in` | `username: String` |
 | `message_received` | `msg: PSMessage` (every raw protocol message) |
 | `room_joined` | `room_id: String, room_type: String` |
@@ -85,6 +85,9 @@ its UI comes from.
   (Linux: `~/.local/share/godot/app_userdata/Showdown Desktop/plugins/`).
 - During development: `tools/run_client.sh` loads the repo's `plugins/` folder.
   Enable plugins with `--enable-plugins=id1,id2`.
+
+A plugin that raises an engine or script error is **paused**: it is switched off, the user
+sees "<name> paused" with "Reload plugin" / "Disable", and the battle goes on.
 
 ## Versioning
 

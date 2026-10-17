@@ -32,8 +32,14 @@ func _init() -> void:
 		_cli[kv[0]] = kv[1] if kv.size() > 1 else "true"
 
 
+## --server-url=ws://... replaces the websocket URL of every server (e.g. a test proxy).
 func get_server(id: String) -> Dictionary:
-	return SERVERS.get(id, {})
+	var server: Dictionary = SERVERS.get(id, {})
+	if server.is_empty() or not has_cli("server-url"):
+		return server
+	var copy := server.duplicate()
+	copy["url"] = cli("server-url")
+	return copy
 
 
 func get_setting(section: String, key: String, default: Variant = null) -> Variant:

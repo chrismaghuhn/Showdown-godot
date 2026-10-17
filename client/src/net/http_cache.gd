@@ -9,6 +9,8 @@ extends Node
 
 ## Emitted when a URL was downloaded with new content (not for cache hits or 304).
 signal updated(url: String)
+## While a download runs, once per frame: bytes so far and the total (-1 if unknown).
+signal progress(url: String, downloaded: int, total: int)
 signal _request_finished(url: String)
 
 const MAX_CONCURRENT := 4
@@ -61,7 +63,12 @@ func fetch(url: String, max_age_sec: int) -> PackedByteArray:
 	var code := 0
 	var response_headers := PackedStringArray()
 	if http.request(url, headers) == OK:
-		var response: Array = await http.request_completed
+		var response: Array = []
+		http.request_completed.connect(func(result: int, response_code: int, h: PackedStringArray, b: PackedByteArray) -> void:
+			response.append_array([result, response_code, h, b]), CONNECT_ONE_SHOT)
+		while response.is_empty():
+			await get_tree().process_frame
+			progress.emit(url, http.get_downloaded_bytes(), http.get_body_size())
 		if response[0] == HTTPRequest.RESULT_SUCCESS:
 			code = response[1]
 			response_headers = response[2]

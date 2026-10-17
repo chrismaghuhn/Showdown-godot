@@ -5,6 +5,9 @@ extends Node
 ##   user://plugins/<id>/                 installed plugins (enabled via settings)
 ##   --plugins-dir=<absolute path>        development plugins, e.g. the repo's plugins/ folder
 ## Enable on the command line with --enable-plugins=id1,id2.
+##
+## An engine or script error raised in a plugin's own scripts pauses that plugin (it is
+## switched off and EventBus.plugin_paused fires) until reload() - the battle goes on.
 
 const USER_PLUGIN_DIR := "user://plugins"
 
@@ -13,9 +16,29 @@ var manifests: Array[PluginManifest] = []
 var _active := {}
 ## [{plugin_id, slot, control}] - kept so UI created later can pick up panels.
 var _panels: Array[Dictionary] = []
+## plugin id -> the error that paused it
+var paused := {}
+var _watch := PluginErrorWatch.new()
+
+
+## Sees every engine error (from any thread) and hands the script paths to the manager.
+class PluginErrorWatch extends Logger:
+	var manager: Object
+
+	func _log_error(_function: String, file: String, _line: int, code: String, rationale: String,
+			_editor_notify: bool, error_type: int, script_backtraces: Array[ScriptBacktrace]) -> void:
+		if error_type == ERROR_TYPE_WARNING or manager == null:
+			return
+		var paths := PackedStringArray([file])
+		for backtrace in script_backtraces:
+			for i in backtrace.get_frame_count():
+				paths.append(backtrace.get_frame_file(i))
+		manager.call_deferred("_on_engine_error", paths, rationale if not rationale.is_empty() else code)
 
 
 func _ready() -> void:
+	_watch.manager = self
+	OS.add_logger(_watch)
 	DirAccess.make_dir_recursive_absolute(USER_PLUGIN_DIR)
 	discover()
 	for m in manifests:
@@ -95,6 +118,51 @@ func disable(id: String) -> void:
 		_panels.erase(p)
 	_active.erase(id)
 	plugin.queue_free()
+
+
+func _exit_tree() -> void:
+	OS.remove_logger(_watch)
+	_watch.manager = null
+
+
+## Switches a misbehaving plugin off until reload() (design: "Damage Calc paused").
+func pause(id: String, reason: String) -> void:
+	if not _active.has(id):
+		return
+	disable(id)
+	paused[id] = reason
+	print("Plugin paused: %s (%s)" % [id, reason])
+	EventBus.plugin_paused.emit(id, reason)
+
+
+## Turns a paused plugin on again.
+func reload(id: String) -> bool:
+	paused.erase(id)
+	return enable(id)
+
+
+## Keeps a plugin off, also after restarts.
+func set_enabled_in_settings(id: String, enabled: bool) -> void:
+	var list: Array = (AppConfig.get_setting("plugins", "enabled", []) as Array).duplicate()
+	list.erase(id)
+	if enabled:
+		list.append(id)
+	AppConfig.set_setting("plugins", "enabled", list)
+	if not enabled:
+		paused.erase(id)
+
+
+func _on_engine_error(paths: PackedStringArray, reason: String) -> void:
+	for id: String in _active.keys():
+		var m := get_manifest(id)
+		if m == null:
+			continue
+		var dirs := [m.dir.trim_suffix("/") + "/", ProjectSettings.globalize_path(m.dir).trim_suffix("/") + "/"]
+		for path in paths:
+			for dir: String in dirs:
+				if not path.is_empty() and (path.begins_with(dir) or ProjectSettings.globalize_path(path).begins_with(dir)):
+					pause(id, reason)
+					return
 
 
 func register_panel(plugin_id: String, slot: StringName, control: Control) -> void:

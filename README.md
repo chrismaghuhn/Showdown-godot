@@ -48,6 +48,8 @@ To develop in the editor, open `client/project.godot` in Godot.
 ```bash
 tools/run_tests.sh     # unit tests (parser, battle state)
 tools/e2e_battle.sh    # two headless clients play a full battle on the local server
+tools/e2e_reconnect.sh # same, but one client loses its connection twice mid-battle
+tools/e2e_sign_in.sh   # signs in and out through the app's sign-in card
 tools/check_data.sh    # loads game data + sample sprites from the configured source
 ```
 
