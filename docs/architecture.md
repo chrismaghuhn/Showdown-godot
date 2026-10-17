@@ -80,7 +80,8 @@ A plugin whose scripts raise an engine error is paused (`Plugins.pause()`,
 | App shell, start screen | done: `app/main.gd` (header, tabs, keys), `ui/screens/start/`, header parts in `ui/components/` (`AppTabs`, `CommandButton`, `NotificationBell`, `AccountButton`) |
 | Battle screen | done (layout B "Desktop"): `ui/screens/battle/`, one instance per battle tab (`bind(room_id)`), components in `ui/components/` (stage, HUD, log, slots, tooltips) |
 | Battle layout A "Familiar", doubles | `ui/screens/battle/` as alternative layout, `StageLayout.DOUBLES` is ready |
-| Lobby, chat rooms | the lobby replaces the interim `ui/screens/home/` (Home tab; `FormatList` and `Rooms.formats` are ready), chat model in `model/` if it needs state |
+| Lobby | done: `ui/screens/home/` (Home tab: find a battle with `FormatPicker`, challenges, your battles, ratings); state in `Rooms` (`formats`, `searching`, `challenges`, `ratings`) |
+| Chat rooms | the lobby's aside (`ui/screens/home/`), chat model in `model/` if it needs state |
 | Command palette | replaces `CommandButton`'s "Go to" menu (#8) |
 | Teambuilder | `model/team/` (team format, import/export, pure + tested) and `ui/screens/teambuilder/` |
 | Pokédex / move data | done: `data/` + `GameData`, see [data-sources.md](data-sources.md) |

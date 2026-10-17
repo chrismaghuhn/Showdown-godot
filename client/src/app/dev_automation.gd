@@ -7,7 +7,8 @@ extends Node
 ##   godot --path client --headless -- --check-data [--data-url=...] [--sprite-url=...]
 ##   godot --path client -- --screen=theme-gallery --theme=classic-light --screenshot=/tmp/shot.png
 ##       (--screen: start, home, teambuilder, watch, settings, battle, dev-console, theme-gallery;
-##        --dev turns on developer mode: console and theme gallery in Ctrl+K)
+##        --dev turns on developer mode: console and theme gallery in Ctrl+K;
+##        --settings-file=<path> reads and saves settings there instead of user://settings.cfg)
 ##   ... --notify-test   (sends the settings' test notification: toast, sound, desktop)
 ##   ... --server=local --search=gen9randombattle --screenshot=/tmp/battle.png --screenshot-turn=3
 ##       (screenshot once the battle reaches that turn, then keep playing)
@@ -15,7 +16,7 @@ extends Node
 ## (default 1280x800, scaled by --ui-scale), independent of the window manager.
 ##   ... --app-state=<id> --screenshot=/tmp/state.png   (shows one app state with sample data:
 ##       connecting, connecting-retry, servers, sign-in, sign-in-password, sign-in-error,
-##       reconnecting, reconnect-failed, gave-up, loading, start-battle)
+##       reconnecting, reconnect-failed, gave-up, loading, start-battle, lobby)
 ##   ... --server=local --server-url=ws://127.0.0.1:8001/showdown/websocket   (through a proxy,
 ##       see tools/net_fault_proxy.py and tools/e2e_reconnect.sh)
 ##   ... --fault-proxy=8002 --faults=3:cut,8:blackhole [--fault-hold=8]
@@ -23,7 +24,7 @@ extends Node
 ##       blackhole is lifted with "normal" after --fault-hold seconds)
 
 const APP_STATES := ["connecting", "connecting-retry", "servers", "sign-in", "sign-in-password",
-	"sign-in-error", "reconnecting", "reconnect-failed", "gave-up", "loading", "start-battle"]
+	"sign-in-error", "reconnecting", "reconnect-failed", "gave-up", "loading", "start-battle", "lobby"]
 
 var _capture: SubViewport
 
@@ -156,12 +157,44 @@ func _preview_app_state(id: String) -> void:
 			if start != null:
 				start.get("_running").show_battle(sample)
 				start.get("_running").visible = true
+		"lobby":
+			_preview_lobby(app)
 		"loading":
 			app.data_panel.preview({"fraction": 0.42, "bytes": 1840000, "files": [
 				{"label": "Pokédex", "state": "done"}, {"label": "Moves", "state": "done"},
 				{"label": "Items", "state": "loading"}, {"label": "Abilities", "state": "pending"},
 				{"label": "Type chart", "state": "pending"}]})
 	_log("app state: " + id)
+
+
+## The lobby with two running battles, challenges and ratings, fed through the normal message
+## path (this process never connects; Connection only looks signed in).
+func _preview_lobby(app: Node) -> void:
+	Connection.username = "ironquill"
+	Connection.signed_in = true
+	Connection.state = Connection.State.CONNECTED
+	Connection.set("_session_up", true)
+	var frames := [
+		"|formats|,LL|,1|S/V Singles|[Gen 9] Random Battle,f|[Gen 9] OU,e|,2|S/V Doubles|[Gen 9] Random Doubles Battle,f|[Gen 9] Doubles OU,e",
+		">battle-gen9ou-1\n|init|battle\n|player|p1|ironquill|1|1621\n|player|p2|Mirebloom|2|1588\n|teamsize|p1|6\n|teamsize|p2|6\n|tier|[Gen 9] OU"
+			+ "\n|switch|p1a: Tremor|Great Tusk, L100|52/100\n|switch|p2a: Gholdengo|Gholdengo, L100|41/100\n|faint|p2a: Gholdengo"
+			+ "\n|switch|p2a: Gholdengo|Gholdengo, L100|41/100\n|turn|7\n|inactive|Battle timer is ON: inactive players will automatically lose when time's up."
+			+ "\n|inactive|Time left: 112 sec this turn | 300 sec total",
+		'>battle-gen9ou-1\n|request|{"active":[{"moves":[]}],"side":{"id":"p1","name":"ironquill","pokemon":[]},"rqid":3}',
+		">battle-gen9randombattle-2\n|init|battle\n|player|p1|ironquill|1|1487\n|player|p2|sandsea|2|1502\n|teamsize|p1|6\n|teamsize|p2|6"
+			+ "\n|tier|[Gen 9] Random Battle\n|switch|p1a: Dondozo|Dondozo, L82|64/100\n|switch|p2a: Annihilape|Annihilape, L77|18/100\n|turn|13",
+		'>battle-gen9randombattle-2\n|request|{"wait":true,"side":{"id":"p1","name":"ironquill","pokemon":[]}}',
+		"|pm| PaperLantern| ironquill|/challenge gen9randombattle|gen9randombattle|||",
+		"|pm| ArcticVolt| ironquill|/challenge gen9doublesou|gen9doublesou|||",
+		"|pm| ironquill| Brock|/challenge gen9randombattle|gen9randombattle|||",
+	]
+	for frame: String in frames:
+		for msg in PSParser.parse_frame(frame):
+			EventBus.message_received.emit(msg)
+	Rooms.ratings = {"gen9ou": {"elo": 1621, "w": 40, "l": 31}, "gen9randombattle": {"elo": 1487, "w": 12, "l": 9},
+		"gen9doublesou": {"elo": 1350, "w": 3, "l": 4}}
+	EventBus.ratings_changed.emit()
+	app.show_screen(&"home")
 
 
 func _on_battle_ended(battle: BattleState, winner: String) -> void:

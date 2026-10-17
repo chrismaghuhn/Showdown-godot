@@ -194,9 +194,10 @@ func _on_private_message(from: String, to: String, text: String) -> void:
 		return
 	var format := NotificationEvents.challenge_format(from, to, text, me)
 	if not format.is_empty():
-		post("challenge", tr("Challenge from %s") % sender, format, [
-			[tr("Accept"), func() -> void: Connection.send("", "/accept " + sender)],
-			[tr("Decline"), func() -> void: Connection.send("", "/reject " + sender)],
+		var format_name := FormatList.display_name(Rooms.formats, PSParser.to_id(format))
+		post("challenge", tr("Challenge from %s") % sender, format_name if not format_name.is_empty() else format, [
+			[tr("Accept"), func() -> void: Rooms.accept_challenge(sender)],
+			[tr("Decline"), func() -> void: Rooms.reject_challenge(sender)],
 		], "challenge:" + PSParser.to_id(sender))
 	elif NotificationEvents.is_private_message(from, text, me):
 		post("private_message", tr("Message from %s") % sender, text.trim_prefix("/me "))

@@ -86,6 +86,8 @@ func apply(msg: PSMessage) -> void:
 		"player":
 			if not msg.arg(1).is_empty():
 				side(msg.arg(0)).player_name = msg.arg(1)
+				if msg.arg(3).is_valid_int():
+					side(msg.arg(0)).rating = msg.arg(3).to_int()
 		"teamsize":
 			side(msg.arg(0)).team_size = msg.arg(1).to_int()
 		"gametype":

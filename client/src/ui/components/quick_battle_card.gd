@@ -6,7 +6,7 @@ extends PanelContainer
 
 const DEFAULT_FORMAT := "gen9randombattle"
 
-var _format := OptionButton.new()
+var _format := FormatPicker.new()
 var _battle := RichButton.new(&"PrimaryButton", 16, 8)
 var _battle_text := RichButton.label("", &"DockTitleLabel")
 var _battle_kbd := RichButton.kbd("Ctrl+Enter", true)
@@ -27,10 +27,8 @@ func _init() -> void:
 	var fields := HBoxContainer.new()
 	fields.add_theme_constant_override("separation", 12)
 	column.add_child(fields)
-	_format.custom_minimum_size = Vector2(212, 40)
-	_format.fit_to_longest_item = false
-	_format.clip_text = true
-	_format.item_selected.connect(func(index: int) -> void: _remember(index))
+	_format.min_width = 212
+	_format.format_selected.connect(_remember)
 	fields.add_child(_field(tr("Format"), _format))
 	var team := Button.new()
 	team.text = tr("Team from the server · no team needed")
@@ -84,33 +82,22 @@ func battle() -> void:
 
 
 func selected_format() -> String:
-	if _format.selected < 0:
-		return str(AppConfig.get_setting("play", "last_format", DEFAULT_FORMAT))
-	return str(_format.get_item_metadata(_format.selected))
+	return _format.selected_id if not _format.selected_id.is_empty() else DEFAULT_FORMAT
 
 
+## Picks the last format again once the server's list is known - unless it needs a team, which
+## v0.1 can't provide.
 func _fill_formats() -> void:
 	var wanted := str(AppConfig.get_setting("play", "last_format", DEFAULT_FORMAT))
-	_format.clear()
-	var formats := FormatList.quick_battle_formats(Rooms.formats)
-	if formats.is_empty():
-		# Not connected yet: offer the last format; the list arrives with |formats|.
-		_format.add_item(str(AppConfig.get_setting("play", "last_format_name", _fallback_name(wanted))))
-		_format.set_item_metadata(0, wanted)
-	for format: Dictionary in formats:
-		_format.add_item(str(format["name"]))
-		_format.set_item_metadata(_format.item_count - 1, str(format["id"]))
-	_select(wanted)
+	var playable := FormatList.quick_battle_formats(Rooms.formats).map(func(f: Dictionary) -> String: return f["id"])
+	if not playable.is_empty() and not wanted in playable:
+		wanted = DEFAULT_FORMAT if DEFAULT_FORMAT in playable else str(playable[0])
+	_format.select(wanted)
 
 
 func _select(format_id: String) -> void:
-	for i in _format.item_count:
-		if str(_format.get_item_metadata(i)) == format_id:
-			_format.select(i)
-			_remember(i)
-			return
-	if _format.item_count > 0 and _format.selected < 0:
-		_format.select(0)
+	_format.select(format_id)
+	_remember(format_id)
 
 
 func _refresh() -> void:
@@ -132,13 +119,11 @@ func _refresh() -> void:
 
 
 ## The format and its name, so the card can show it before the server's list arrives.
-func _remember(index: int) -> void:
-	AppConfig.set_setting("play", "last_format", str(_format.get_item_metadata(index)))
-	AppConfig.set_setting("play", "last_format_name", _format.get_item_text(index))
-
-
-static func _fallback_name(format_id: String) -> String:
-	return "[Gen 9] Random Battle" if format_id == DEFAULT_FORMAT else format_id
+func _remember(format_id: String) -> void:
+	AppConfig.set_setting("play", "last_format", format_id)
+	var name := FormatList.display_name(Rooms.formats, format_id)
+	if not name.is_empty():
+		AppConfig.set_setting("play", "last_format_name", name)
 
 
 func _field(label_text: String, control: Control) -> VBoxContainer:

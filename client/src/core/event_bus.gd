@@ -42,6 +42,10 @@ signal formats_changed
 signal search_changed(searching: PackedStringArray, games: Dictionary)
 ## A battle started or stopped waiting for your choice (BattleState.awaiting_choice).
 signal battle_attention_changed(battle: BattleState)
+## Open challenges changed (Rooms.challenges).
+signal challenges_changed
+## The signed-in user's ladder ratings arrived (Rooms.ratings).
+signal ratings_changed
 
 # Battles
 signal battle_started(battle: BattleState)

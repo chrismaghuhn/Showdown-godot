@@ -43,6 +43,7 @@ var current: StringName = &""
 var _screens := {}
 var _content := Control.new()
 var _tab_scroll := ScrollContainer.new()
+var _start_spacer: Control
 var _start_chip := Label.new()
 var _status := ConnectionStatus.new()
 var _command := CommandButton.new()
@@ -163,8 +164,11 @@ func _build_header() -> PanelContainer:
 	_tab_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_tab_scroll.add_child(tabs)
 	row.add_child(_tab_scroll)
+	# On the start screen the tabs are hidden; this keeps the right side to the right.
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	spacer.visible = false
+	_start_spacer = spacer
 	row.add_child(spacer)
 	row.add_child(_spaced(_status, 0, 8))
 	row.add_child(_command)
@@ -193,6 +197,7 @@ func _refresh_header() -> void:
 	var start := current == &"start"
 	_start_chip.visible = start
 	_tab_scroll.visible = not start
+	_start_spacer.visible = start
 	# The pill always shows on the start screen; elsewhere only when something is wrong.
 	_status.get_parent().visible = start or _status.needs_attention()
 
@@ -262,7 +267,11 @@ func _screen(id: StringName) -> Control:
 			&"start":
 				screen = StartScreen.new()
 			&"home":
-				screen = HomeScreen.new()
+				var home := HomeScreen.new()
+				# "Open · Ctrl+3" on a lobby battle card: the number of that battle's tab.
+				home.tab_number = func(room_id: String) -> int:
+					return tabs.ids().find(StringName("battle:" + room_id)) + 1
+				screen = home
 			&"teambuilder":
 				screen = ComingSoonScreen.new("ui-grid-view", tr("The Teambuilder is coming"),
 					tr("Random Battles bring their own team, so you can play right away. Building, importing and backing up teams comes in v0.2."))

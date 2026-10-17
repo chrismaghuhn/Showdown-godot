@@ -710,6 +710,18 @@ func _build_shell() -> void:
 		var spec: Array = labels[variation]
 		_variation(variation, "Label")
 		_label_style(variation, spec[0], spec[1], spec[2])
+	# Lobby (design: "Lobby / Home"): battle cards (outlined in the accent color when it's your
+	# move) and the "Searching… 0:14" state of the search button.
+	for variation: String in ["BattleCard", "BattleCardActive"]:
+		var border := c("color.accent.default") if variation == "BattleCardActive" else c("color.border.default")
+		_variation(variation, "PanelContainer")
+		theme.set_stylebox("panel", variation, _box(c("color.surface.raised"), border, bw, lg, t.px("space.md"), t.px("space.md")))
+	_variation("SearchingButton", "Button")
+	var accent_subtle := [c("color.accent.subtle"), c("color.accent.default")]
+	_button("SearchingButton", {"normal": accent_subtle, "hover": accent_subtle, "pressed": accent_subtle,
+		"disabled": accent_subtle}, [c("color.accent.text"), c("color.accent.text"), c("color.accent.text")], 12, 7)
+	_variation("AccentLabel", "Label")
+	_label_style("AccentLabel", c("color.accent.text"), "ui_semi", "font.size.md")
 	for item in ["font_color", "font_hover_color", "font_focus_color", "font_hover_pressed_color"]:
 		theme.set_color(item, "LinkButton", primary_fg)
 	theme.set_color("font_pressed_color", "LinkButton", c("color.text.secondary"))

@@ -20,6 +20,18 @@ var formats: Array[Dictionary] = []
 var searching := PackedStringArray()
 ## This user's running games {room_id: title} (|updatesearch|), joined or not.
 var games := {}
+## Open challenges, by the other user's id: {user, format, incoming, time}. They arrive as
+## |pm|FROM|TO|/challenge FORMAT|... (both sides); an empty "/challenge" ends one.
+var challenges := {}
+## The signed-in user's ladder ratings: {format id: {elo, w, l}}. See request_ratings().
+var ratings := {}
+## Ratings come back this long after a battle ends (the ladder updates first).
+const RATINGS_AFTER_BATTLE_SEC := 2.0
+const RATINGS_MAX_AGE := 60
+
+var _ratings_cache := HttpCache.new("user://cache/ratings")
+## /rank was sent and its |raw| reply is expected for this user id.
+var _awaiting_rank := ""
 
 ## Games that were already running when we signed in (after a restart): their battles come
 ## back in the background instead of taking over the screen.
@@ -38,12 +50,18 @@ var _replayed_ended := {}
 
 
 func _ready() -> void:
+	add_child(_ratings_cache)
 	EventBus.message_received.connect(_on_message)
+	EventBus.battle_ended.connect(func(_b: BattleState, _w: String) -> void:
+		get_tree().create_timer(RATINGS_AFTER_BATTLE_SEC).timeout.connect(request_ratings))
 	EventBus.reconnected.connect(_on_reconnected)
 	EventBus.connection_state_changed.connect(_on_connection_state_changed)
 	EventBus.logged_in.connect(func(_username: String) -> void:
 		_await_games_snapshot = true
 		_games_at_sign_in.clear()
+		ratings = {}
+		EventBus.ratings_changed.emit()
+		request_ratings()
 		if not _pending_search.is_empty():
 			var format := _pending_search
 			_pending_search = ""
@@ -58,6 +76,48 @@ func _ready() -> void:
 
 func get_battle(room_id: String) -> BattleState:
 	return battles.get(room_id)
+
+
+## Challenges a user to a battle in `format_id`. Names are sent as ids, so nothing typed can
+## smuggle in another command.
+func challenge(user: String, format_id: String) -> void:
+	var userid := PSParser.to_id(user)
+	if userid.is_empty() or not Connection.signed_in:
+		return
+	Connection.send("", "/utm null")
+	Connection.send("", "/challenge %s, %s" % [userid, PSParser.to_id(format_id)])
+
+
+func accept_challenge(user: String) -> void:
+	Connection.send("", "/utm null")
+	Connection.send("", "/accept " + PSParser.to_id(user))
+
+
+func reject_challenge(user: String) -> void:
+	Connection.send("", "/reject " + PSParser.to_id(user))
+
+
+func cancel_challenge(user: String) -> void:
+	Connection.send("", "/cancelchallenge " + PSParser.to_id(user))
+
+
+## Asks for the signed-in user's ladder ratings (server setting "ratings"); they arrive as
+## EventBus.ratings_changed.
+func request_ratings() -> void:
+	if not Connection.signed_in:
+		return
+	var userid := PSParser.to_id(Connection.username)
+	var source := str(AppConfig.get_server(Connection.server_id).get("ratings", "rank"))
+	if source == "rank":
+		_awaiting_rank = userid
+		Connection.send("", "/rank")
+		return
+	if AppConfig.has_cli("no-data-fetch"):
+		return
+	var bytes := await _ratings_cache.fetch(source % userid, RATINGS_MAX_AGE)
+	if not bytes.is_empty() and Connection.signed_in and PSParser.to_id(Connection.username) == userid:
+		ratings = parse_ratings_json(bytes.get_string_from_utf8())
+		EventBus.ratings_changed.emit()
 
 
 ## Searches a battle in `format_id` (e.g. "gen9randombattle"). Not signed in yet: asks for a
@@ -166,7 +226,13 @@ func _on_message(msg: PSMessage) -> void:
 		"c:":
 			EventBus.chat_message.emit(room_id, msg.arg(1).strip_edges(), msg.arg(2))
 		"pm":
+			_on_challenge_pm(msg.arg(0), msg.arg(1), msg.arg(2))
+			# Outside a room, /rank answers as a server PM: |pm| NAME|~|/raw <div class="ladder">...
+			if msg.arg(2).begins_with("/raw "):
+				_on_rank_reply(msg.arg(2).trim_prefix("/raw "))
 			EventBus.private_message.emit(msg.arg(0).strip_edges(), msg.arg(1).strip_edges(), msg.arg(2))
+		"raw":
+			_on_rank_reply(msg.arg(0))
 		"popup":
 			EventBus.popup.emit(msg.arg(0).replace("||", "\n"))
 
@@ -209,6 +275,81 @@ func _on_updatesearch(json: String) -> void:
 		_await_games_snapshot = false
 		_games_at_sign_in = games.duplicate()
 	EventBus.search_changed.emit(searching, games)
+
+
+func _on_rank_reply(html: String) -> void:
+	if _awaiting_rank.is_empty() or not html.begins_with("<div class=\"ladder\">"):
+		return
+	var parsed := parse_rank_html(html)
+	if PSParser.to_id(parsed["user"]) == _awaiting_rank:
+		_awaiting_rank = ""
+		ratings = parsed["ratings"]
+		EventBus.ratings_changed.emit()
+
+
+func _on_challenge_pm(from: String, to: String, text: String) -> void:
+	if not text.begins_with("/challenge"):
+		return
+	var change := challenge_from_pm(from, to, text, Connection.username)
+	if change.is_empty():
+		return
+	if change.get("ended", false):
+		if not challenges.erase(change["id"]):
+			return
+	else:
+		challenges[change["id"]] = change
+	EventBus.challenges_changed.emit()
+
+
+## |pm|FROM|TO|/challenge FORMAT|... between us and someone else -> {id, user, format,
+## incoming, time}; an empty "/challenge" -> {id, ended: true}; anything else -> {}.
+static func challenge_from_pm(from: String, to: String, text: String, me: String) -> Dictionary:
+	var sender := identity_name(from)
+	var receiver := identity_name(to)
+	var incoming := PSParser.to_id(receiver) == PSParser.to_id(me)
+	if not incoming and PSParser.to_id(sender) != PSParser.to_id(me):
+		return {}
+	var other := sender if incoming else receiver
+	var format := text.trim_prefix("/challenge").strip_edges().get_slice("|", 0).strip_edges()
+	if format.is_empty():
+		return {"id": PSParser.to_id(other), "ended": true}
+	return {"id": PSParser.to_id(other), "user": other, "format": format, "incoming": incoming,
+		"time": int(Time.get_unix_time_from_system())}
+
+
+## " ironquill", "+Voice@!" -> the plain name (rank symbol and away marker removed).
+static func identity_name(identity: String) -> String:
+	var name := identity.strip_edges().get_slice("@!", 0)
+	if not name.is_empty() and PSParser.to_id(name[0]).is_empty():
+		name = name.substr(1)
+	return name.strip_edges()
+
+
+## The local server's /rank reply: <div class="ladder"><div>User: <strong>NAME</strong></div>
+## <table>...<tr><td>FORMAT</td><td><strong>ELO</strong></td><td>W</td><td>L</td>... ->
+## {user, ratings: {format: {elo, w, l}}}. Only numbers and ids are taken from it.
+static func parse_rank_html(html: String) -> Dictionary:
+	var user_match := RegEx.create_from_string("User: <strong>([^<]*)</strong>").search(html)
+	var result := {"user": user_match.get_string(1) if user_match != null else "", "ratings": {}}
+	var row := RegEx.create_from_string("<tr><td>([a-z0-9]+)</td><td><strong>(\\d+)</strong></td><td>(\\d+)</td><td>(\\d+)</td>")
+	for found in row.search_all(html):
+		result["ratings"][found.get_string(1)] = {"elo": found.get_string(2).to_int(),
+			"w": found.get_string(3).to_int(), "l": found.get_string(4).to_int()}
+	return result
+
+
+## pokemonshowdown.com/users/<id>.json: {"ratings": {"gen9ou": {"elo": 1621, "gxe": 63.2, "w": 40,
+## "l": 31, ...}}} -> {format: {elo, w, l}}.
+static func parse_ratings_json(text: String) -> Dictionary:
+	var json := JSON.new()
+	if json.parse(text) != OK or not json.data is Dictionary or not json.data.get("ratings") is Dictionary:
+		return {}
+	var result := {}
+	for format: Variant in json.data["ratings"]:
+		var entry: Variant = json.data["ratings"][format]
+		if entry is Dictionary and (entry.get("elo") is float or entry.get("elo") is int):
+			result[str(format)] = {"elo": roundi(float(entry["elo"])), "w": int(entry.get("w", 0)), "l": int(entry.get("l", 0))}
+	return result
 
 
 func _set_attention(room_id: String, awaiting: bool) -> void:
@@ -261,6 +402,10 @@ func _on_connection_state_changed(state: int) -> void:
 	if state != Connection.State.CONNECTED and not searching.is_empty():
 		searching = PackedStringArray()
 		EventBus.search_changed.emit(searching, games)
+	# Challenges live on the server per connection; the server resends them after a sign-in.
+	if state != Connection.State.CONNECTED and not challenges.is_empty():
+		challenges.clear()
+		EventBus.challenges_changed.emit()
 
 
 ## |updatesearch|{"searching": [...], "games": {"battle-...": "[Gen 9] Random Battle", ...}}

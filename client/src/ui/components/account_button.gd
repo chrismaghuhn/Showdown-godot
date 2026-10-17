@@ -1,8 +1,8 @@
 class_name AccountButton
 extends RichButton
 ## The account in the app header (design: avatar with initials, name and a second line): signed
-## in, a guest, or offline. Its menu signs in or out and leads to the start screen. Ratings
-## come with the lobby (#23); until then the second line names the server.
+## in, a guest, or offline. Its menu signs in or out and leads to the start screen. Signed in,
+## the second line is the rating in the last played format ("OU 1621"), else the server.
 
 signal start_screen_requested
 
@@ -44,11 +44,18 @@ func _ready() -> void:
 	EventBus.logged_in.connect(func(_u: String) -> void: refresh())
 	EventBus.signed_out.connect(refresh)
 	EventBus.reconnected.connect(refresh)
+	EventBus.ratings_changed.connect(refresh)
 	refresh()
 
 
 func refresh() -> void:
-	var view := describe(Connection.status(), str(AppConfig.get_setting("account", "username", "")))
+	var format_id := str(AppConfig.get_setting("play", "last_format", ""))
+	var rating := ""
+	if Rooms.ratings.has(format_id):
+		var format_name := FormatList.display_name(Rooms.formats, format_id)
+		rating = "%s %d" % [_short_format(format_name if not format_name.is_empty() else format_id),
+			int(Rooms.ratings[format_id]["elo"])]
+	var view := describe(Connection.status(), str(AppConfig.get_setting("account", "username", "")), rating)
 	_initials.text = view["initials"]
 	_name.text = view["name"]
 	_sub.text = view["sub"]
@@ -56,17 +63,23 @@ func refresh() -> void:
 
 
 ## {initials, name, sub} for the header, from Connection.status().
-static func describe(status: Dictionary, remembered: String) -> Dictionary:
+static func describe(status: Dictionary, remembered: String, rating := "") -> Dictionary:
 	var host := str(status.get("server_host", "")).get_slice(".", 0).get_slice(":", 0)
 	if status.get("signed_in", false):
 		var name := str(status.get("username", ""))
-		return {"initials": initials(name), "name": name, "sub": host}
+		return {"initials": initials(name), "name": name, "sub": rating if not rating.is_empty() else host}
 	if int(status.get("state", 0)) == Connection.State.CONNECTED:
 		return {"initials": "?", "name": str(TranslationServer.translate("Guest")),
 			"sub": str(TranslationServer.translate("Sign in"))}
 	var offline_name := remembered if not remembered.is_empty() else str(TranslationServer.translate("Offline"))
 	return {"initials": initials(remembered) if not remembered.is_empty() else "–", "name": offline_name,
 		"sub": str(TranslationServer.translate("Not connected"))}
+
+
+## "[Gen 9] OU" -> "OU", random battles -> "Random" (same as the battle tabs).
+static func _short_format(format: String) -> String:
+	var name := format.get_slice("] ", 1) if format.contains("] ") else format
+	return "Random" if name.to_lower().contains("random") else name
 
 
 ## "Iron Quill" -> "IQ", "ironquill" -> "IR", "x" -> "X".
