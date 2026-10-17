@@ -95,7 +95,8 @@ func apply(msg: PSMessage) -> void:
 		"gametype":
 			game_type = msg.arg(0)
 		"rated":
-			rated = true
+			# |rated|MESSAGE (tournaments) is only a note, not a ladder game.
+			rated = msg.arg(0).is_empty()
 		"gen":
 			gen = msg.arg(0).to_int()
 		"tier":

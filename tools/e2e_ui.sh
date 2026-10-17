@@ -29,6 +29,8 @@ for flow in "${FLOWS[@]}"; do
   if grep -qE "^(SCRIPT )?ERROR" "$LOG"; then
     echo "!! errors in the log ($LOG)"
     STATUS=1
+  elif grep -q "\[e2e\] .* flow: OK" "$LOG"; then
+    rm -f "$LOG"  # keep logs only for failures
   fi
 done
 [ $STATUS -eq 0 ] && echo "E2E UI: OK" || echo "E2E UI: FAILED"

@@ -417,6 +417,8 @@ func _on_server_popup(text: String) -> void:
 	var plain := text.trim_prefix("|html|")
 	if plain != text:
 		plain = RegEx.create_from_string("<[^>]*>").sub(plain, " ", true).strip_edges()
+		for entity: Array in [["&lt;", "<"], ["&gt;", ">"], ["&quot;", "\""], ["&#39;", "'"], ["&#039;", "'"], ["&amp;", "&"]]:
+			plain = plain.replace(entity[0], entity[1])
 	if plain.is_empty():
 		return
 	EventBus.toast_requested.emit({"event": "popup", "title": tr("Message from the server"), "body": plain})

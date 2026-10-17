@@ -158,4 +158,7 @@ func test_rated_battles_are_marked() -> void:
 	var battle := BattleState.new("battle-gen9randombattle-5")
 	battle.apply(PSParser.parse_frame("|rated|")[0])
 	assert_true(battle.rated, "|rated|")
+	var tour := BattleState.new("battle-gen9randombattle-6")
+	tour.apply(PSParser.parse_frame("|rated|Tournament battle")[0])
+	assert_true(not tour.rated, "|rated|MESSAGE is only a note")
 	assert_true(not BattleState.new("x").rated, "challenge battles aren't")

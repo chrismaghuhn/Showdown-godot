@@ -155,6 +155,12 @@ func cancel_search() -> void:
 		Connection.send("", "/cancelsearch")
 
 
+## Forgets a search or challenge that was waiting for the sign-in ("Not now", "Work offline").
+func drop_pending() -> void:
+	_pending_search = ""
+	_pending_challenge = []
+
+
 ## True while a search runs or waits for the sign-in.
 func is_searching() -> bool:
 	return not searching.is_empty() or not _pending_search.is_empty()

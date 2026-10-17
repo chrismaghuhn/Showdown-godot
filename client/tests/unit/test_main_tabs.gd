@@ -121,9 +121,11 @@ func test_dismissed_sign_in_drops_the_pending_search() -> void:
 		"signing_in": false, "reconnecting": false, "server_host": "sim3.psim.us"}, {})
 	assert_eq(overlay.current_card(), &"sign_in", "Battle! while signed out asks for a name")
 	Rooms._pending_search = "gen9randombattle"
+	Rooms._pending_challenge = ["misty", "gen9randombattle"]
 	assert_true(Rooms.is_searching(), "the search waits for the name")
 	overlay._sign_in.dismissed.emit()
 	assert_true(not Rooms.is_searching(), "Not now: no search later")
+	assert_eq(Rooms._pending_challenge, [], "and no challenge later")
 	main.free()
 
 
@@ -158,8 +160,8 @@ func test_server_popups_become_toasts() -> void:
 	var on_toast := func(toast: Dictionary) -> void: toasts.append(toast)
 	EventBus.toast_requested.connect(on_toast)
 	EventBus.popup.emit("The user 'nobody' was not found.")
-	EventBus.popup.emit("|html|<b>Team rejected</b>: Pikachu is banned.")
+	EventBus.popup.emit("|html|<b>Team rejected</b>: &quot;Pikachu&quot; is banned.")
 	assert_eq(toasts.map(func(t: Dictionary) -> String: return t["body"]),
-		["The user 'nobody' was not found.", "Team rejected : Pikachu is banned."], "plain text")
+		["The user 'nobody' was not found.", "Team rejected : \"Pikachu\" is banned."], "plain text")
 	EventBus.toast_requested.disconnect(on_toast)
 	_cleanup(main, [])
