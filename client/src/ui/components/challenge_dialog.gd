@@ -1,7 +1,7 @@
 class_name ChallengeDialog
 extends PopupPanel
 ## "Challenge a user…" (design: lobby): a name and a format, sent with /challenge. Signed out,
-## it asks for a name first.
+## it asks for a name first. The server's answer to a failed challenge shows as a toast.
 
 var _name := LineEdit.new()
 var _format := FormatPicker.new(FormatPicker.Purpose.CHALLENGE)
@@ -33,6 +33,7 @@ func _init() -> void:
 
 func open_at(anchor: Control) -> void:
 	_name.clear()
+	_format.select(str(AppConfig.get_setting("play", "last_format", QuickBattleCard.DEFAULT_FORMAT)))
 	_update()
 	reset_size()
 	position = Vector2i(anchor.get_screen_position() + Vector2(anchor.size.x - size.x, anchor.size.y + 4))
@@ -47,9 +48,7 @@ func _update() -> void:
 func _submit() -> void:
 	if _send.disabled:
 		return
-	if not Connection.signed_in:
-		EventBus.sign_in_requested.emit()
-		return
+	# Signed out, Rooms asks for a name first and sends the challenge right after.
 	Rooms.challenge(_name.text, _format.selected_id)
 	hide()
 

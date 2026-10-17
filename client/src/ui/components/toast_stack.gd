@@ -8,7 +8,7 @@ extends VBoxContainer
 const EVENT_ICONS := {
 	"battle_found": "ui-battle", "your_turn": "ui-notify", "timer_low": "ui-timer",
 	"challenge": "ui-user-plus", "mention": "ui-chat", "private_message": "ui-inbox", "battle_ended": "ui-check-circle",
-	"reconnected": "ui-check", "plugin_paused": "ui-plugin",
+	"reconnected": "ui-check", "plugin_paused": "ui-plugin", "popup": "ui-info",
 }
 const EVENT_COLORS := {"reconnected": "color.success.text", "plugin_paused": "color.plugin.text"}
 

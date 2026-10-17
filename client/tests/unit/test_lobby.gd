@@ -97,3 +97,65 @@ func test_rank_reply_as_server_pm() -> void:
 	assert_eq(Rooms._awaiting_rank, "", "answered")
 	Rooms._awaiting_rank = was_awaiting
 	Rooms.ratings = was_ratings
+
+
+func test_challenge_toast_goes_when_the_challenge_ends() -> void:
+	var was: String = Connection.username
+	Connection.username = "Ash"
+	var dismissed: Array[String] = []
+	var on_dismiss := func(key: String) -> void: dismissed.append(key)
+	EventBus.toast_dismissed.connect(on_dismiss)
+	_feed("|pm| Misty| Ash|/challenge gen9randombattle|gen9randombattle|||")
+	# Declined or accepted on our side: the server sends the end from us to them.
+	_feed("|pm| Ash| Misty|/challenge")
+	assert_true("challenge:misty" in dismissed, "the toast goes")
+	EventBus.toast_dismissed.disconnect(on_dismiss)
+	Connection.username = was
+
+
+func test_ratings_and_challenges_cleared() -> void:
+	Rooms.ratings = {"gen9ou": {"elo": 1500, "w": 1, "l": 0}}
+	EventBus.signed_out.emit()
+	assert_eq(Rooms.ratings, {}, "signed out: no ratings")
+	Rooms.challenges = {"misty": {"id": "misty", "user": "Misty", "format": "gen9ou", "incoming": true, "time": 0}}
+	Rooms.ratings = {"gen9ou": {"elo": 1500, "w": 1, "l": 0}}
+	EventBus.connection_state_changed.emit(Connection.State.WAITING)
+	assert_eq([Rooms.challenges, Rooms.ratings], [{}, {}], "connection lost: neither")
+
+
+func test_rank_replies_for_others_are_ignored() -> void:
+	var was_awaiting: String = Rooms._awaiting_rank
+	Rooms._awaiting_rank = "ash"
+	Rooms.ratings = {}
+	_feed("|raw|<div class=\"ladder\"><div>User: <strong>Brock</strong></div><table><tr><td>gen9ou</td><td><strong>1700</strong></td><td>9</td><td>1</td><td>10</td></tr></table></div>")
+	assert_eq(Rooms.ratings, {}, "someone else's /rank")
+	_feed("|raw|<div class=\"ladder\"><div>User: <strong>Ash</strong></div><table><tr><td>gen9ou</td><td><strong>1520</strong></td><td>2</td><td>1</td><td>3</td></tr></table></div>")
+	assert_eq(Rooms.ratings, {"gen9ou": {"elo": 1520, "w": 2, "l": 1}}, "ours, as |raw| in a room")
+	Rooms._awaiting_rank = was_awaiting
+	Rooms.ratings = {}
+
+
+func test_which_formats_need_a_team() -> void:
+	var formats := _formats()
+	assert_true(not Rooms.format_needs_team(formats, "gen9randombattle"), "random battle")
+	assert_true(Rooms.format_needs_team(formats, "gen9ou"), "OU")
+	assert_true(Rooms.format_needs_team(formats, "gen9ou@@@-Swagger"), "custom rules")
+	assert_true(Rooms.format_needs_team(formats, "gen1nonsense"), "unknown")
+
+
+func test_challenge_before_signing_in_waits() -> void:
+	var asked: Array[bool] = []
+	var on_ask := func() -> void: asked.append(true)
+	EventBus.sign_in_requested.connect(on_ask)
+	Rooms.challenge("Misty", "gen9randombattle")
+	assert_eq([Rooms._pending_challenge, asked.size()], [["misty", "gen9randombattle"], 1], "waits for a name")
+	EventBus.signed_out.emit()
+	assert_eq(Rooms._pending_challenge, [], "dropped with the sign-out")
+	EventBus.sign_in_requested.disconnect(on_ask)
+
+
+func test_rated_battles_are_marked() -> void:
+	var battle := BattleState.new("battle-gen9randombattle-5")
+	battle.apply(PSParser.parse_frame("|rated|")[0])
+	assert_true(battle.rated, "|rated|")
+	assert_true(not BattleState.new("x").rated, "challenge battles aren't")

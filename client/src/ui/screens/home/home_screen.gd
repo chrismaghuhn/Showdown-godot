@@ -29,6 +29,9 @@ var _account := VBoxContainer.new()
 var _challenge_dialog := ChallengeDialog.new()
 var _challenge_button: Button
 var _search_started_msec := -1
+## The battle cards need a rebuild; done once per frame, and only while Home is visible (a
+## replayed battle log is hundreds of messages).
+var _battles_dirty := false
 
 
 func _ready() -> void:
@@ -45,19 +48,21 @@ func _ready() -> void:
 	EventBus.ratings_changed.connect(func() -> void:
 		_refresh_find()
 		_refresh_account())
-	EventBus.challenges_changed.connect(_refresh_challenges)
+	EventBus.challenges_changed.connect(func() -> void:
+		_refresh_challenges()
+		_refresh_sent())
 	EventBus.logged_in.connect(func(_u: String) -> void: _refresh_account())
 	EventBus.signed_out.connect(_refresh_account)
 	EventBus.connection_state_changed.connect(func(_s: int) -> void:
 		_refresh_account()
 		_refresh_find())
-	EventBus.battle_started.connect(func(_b: BattleState) -> void: _refresh_battles())
-	EventBus.battle_attention_changed.connect(func(_b: BattleState) -> void: _refresh_battles())
-	EventBus.battle_ended.connect(func(_b: BattleState, _w: String) -> void: _refresh_battles())
+	EventBus.battle_started.connect(func(_b: BattleState) -> void: _queue_battles())
+	EventBus.battle_attention_changed.connect(func(_b: BattleState) -> void: _queue_battles())
+	EventBus.battle_ended.connect(func(_b: BattleState, _w: String) -> void: _queue_battles())
 	EventBus.battle_updated.connect(func(_b: BattleState, msg: PSMessage) -> void:
 		if msg.type in ["turn", "player", "switch", "drag", "faint", "-damage", "-heal", "inactive", "teamsize"]:
-			_refresh_battles())
-	EventBus.room_left.connect(func(_room: String) -> void: _refresh_battles())
+			_queue_battles())
+	EventBus.room_left.connect(func(_room: String) -> void: _queue_battles())
 	var ticker := Timer.new()
 	ticker.wait_time = 1.0
 	ticker.autostart = true
@@ -65,9 +70,15 @@ func _ready() -> void:
 	add_child(ticker)
 	add_child(_challenge_dialog)
 	_refresh_find()
+	_refresh_sent()
 	_refresh_battles()
 	_refresh_challenges()
 	_refresh_account()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_VISIBILITY_CHANGED and is_inside_tree() and is_visible_in_tree() and _battles_dirty:
+		_refresh_battles.call_deferred()
 
 
 # --- Layout -------------------------------------------------------------------------------
@@ -230,8 +241,11 @@ func _refresh_find() -> void:
 	_team.text = tr("Needs a team · the Teambuilder comes in v0.2") if needs_team else tr("Team from the server · no team needed")
 	_battle.disabled = needs_team
 	_rated.text = rated_line(_format.selected_id, format, Rooms.ratings)
-	for child in _sent.get_children():
-		child.queue_free()
+
+
+## Challenges you sent, with "Cancel challenge" (rebuilt only when they change).
+func _refresh_sent() -> void:
+	_clear(_sent)
 	for id: String in Rooms.challenges:
 		var challenge: Dictionary = Rooms.challenges[id]
 		if challenge["incoming"]:
@@ -273,9 +287,17 @@ func _format_name(format_id: String) -> String:
 
 # --- Your battles -----------------------------------------------------------------------------
 
+func _queue_battles() -> void:
+	if _battles_dirty:
+		return
+	_battles_dirty = true
+	if is_visible_in_tree():
+		_refresh_battles.call_deferred()
+
+
 func _refresh_battles() -> void:
-	for child in _battles.get_children():
-		child.queue_free()
+	_battles_dirty = false
+	_clear(_battles)
 	var running := Rooms.running_battles()
 	_battles_count.text = str(running.size()) if not running.is_empty() else ""
 	_battles_empty.visible = running.is_empty()
@@ -292,8 +314,7 @@ func _refresh_battles() -> void:
 # --- Incoming challenges ----------------------------------------------------------------------
 
 func _refresh_challenges() -> void:
-	for child in _challenges.get_children():
-		child.queue_free()
+	_clear(_challenges)
 	var incoming: Array[Dictionary] = []
 	for id: String in Rooms.challenges:
 		if Rooms.challenges[id]["incoming"]:
@@ -302,12 +323,10 @@ func _refresh_challenges() -> void:
 	if incoming.is_empty():
 		var empty := RichButton.label(tr("Nobody has challenged you."), &"MutedLabel")
 		_challenges.add_child(empty)
-		_refresh_find()
 		return
 	var now := int(Time.get_unix_time_from_system())
 	for challenge in incoming:
 		_challenges.add_child(_challenge_row(challenge, now))
-	_refresh_find()
 
 
 func _challenge_row(challenge: Dictionary, now: int) -> Control:
@@ -331,12 +350,10 @@ func _challenge_row(challenge: Dictionary, now: int) -> Control:
 	who.add_child(RichButton.label(tr("%s ago") % NotificationBell.time_ago(now - int(challenge["time"])) \
 		if now - int(challenge["time"]) >= 60 else tr("just now"), &"MutedLabel"))
 	row.add_child(who)
-	var format_id := PSParser.to_id(str(challenge["format"]))
 	var chip := RichButton.label(_format_name(str(challenge["format"])), &"FormatChip")
 	chip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(chip)
-	var info := _format_info(format_id)
-	var needs_team: bool = not info.is_empty() and not info["preset_team"]
+	var needs_team := Rooms.format_needs_team(Rooms.formats, str(challenge["format"]))
 	var team := RichButton.label(tr("Needs a team · Teambuilder in v0.2") if needs_team else tr("No team needed"), &"MutedLabel")
 	team.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(team)
@@ -353,8 +370,7 @@ func _challenge_row(challenge: Dictionary, now: int) -> Control:
 # --- Account ----------------------------------------------------------------------------------
 
 func _refresh_account() -> void:
-	for child in _account.get_children():
-		child.queue_free()
+	_clear(_account)
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 12)
 	var status := Connection.status()
@@ -413,6 +429,14 @@ static func rating_rows(ratings: Dictionary, formats: Array[Dictionary]) -> Arra
 		rows.append([name if not name.is_empty() else format_id, int(ratings[format_id]["elo"])])
 	rows.sort_custom(func(a: Array, b: Array) -> bool: return a[1] > b[1])
 	return rows.slice(0, 6)
+
+
+## Removes the children right away (queue_free alone would keep them in the layout until the
+## end of the frame).
+func _clear(container: Node) -> void:
+	for child in container.get_children():
+		container.remove_child(child)
+		child.queue_free()
 
 
 # --- Keys -------------------------------------------------------------------------------------

@@ -25,8 +25,8 @@ var games := {}
 var challenges := {}
 ## The signed-in user's ladder ratings: {format id: {elo, w, l}}. See request_ratings().
 var ratings := {}
-## Ratings come back this long after a battle ends (the ladder updates first).
-const RATINGS_AFTER_BATTLE_SEC := 2.0
+## Ratings are fetched again this long after a rated battle ends (the ladder updates first).
+const RATINGS_AFTER_BATTLE_SEC := 3.0
 const RATINGS_MAX_AGE := 60
 
 var _ratings_cache := HttpCache.new("user://cache/ratings")
@@ -39,6 +39,8 @@ var _games_at_sign_in := {}
 var _await_games_snapshot := false
 ## A search the user asked for before signing in; it starts once signed in.
 var _pending_search := ""
+## A challenge [user, format] the user sent before signing in; it goes out once signed in.
+var _pending_challenge: Array = []
 
 ## room_id -> true while its |init| is outstanding after a reconnect
 var _restoring := {}
@@ -52,8 +54,9 @@ var _replayed_ended := {}
 func _ready() -> void:
 	add_child(_ratings_cache)
 	EventBus.message_received.connect(_on_message)
-	EventBus.battle_ended.connect(func(_b: BattleState, _w: String) -> void:
-		get_tree().create_timer(RATINGS_AFTER_BATTLE_SEC).timeout.connect(request_ratings))
+	EventBus.battle_ended.connect(func(battle: BattleState, _w: String) -> void:
+		if battle.rated:
+			get_tree().create_timer(RATINGS_AFTER_BATTLE_SEC).timeout.connect(request_ratings.bind(true)))
 	EventBus.reconnected.connect(_on_reconnected)
 	EventBus.connection_state_changed.connect(_on_connection_state_changed)
 	EventBus.logged_in.connect(func(_username: String) -> void:
@@ -65,8 +68,15 @@ func _ready() -> void:
 		if not _pending_search.is_empty():
 			var format := _pending_search
 			_pending_search = ""
-			search(format))
-	EventBus.signed_out.connect(func() -> void: _pending_search = "")
+			search(format)
+		if not _pending_challenge.is_empty():
+			var waiting := _pending_challenge
+			_pending_challenge = []
+			challenge(waiting[0], waiting[1]))
+	EventBus.signed_out.connect(func() -> void:
+		_pending_search = ""
+		_pending_challenge = []
+		_clear_ratings())
 	EventBus.choice_sent.connect(func(room_id: String, _choice: String) -> void: _set_attention(room_id, false))
 	EventBus.choice_undone.connect(func(room_id: String) -> void:
 		var battle: BattleState = battles.get(room_id)
@@ -82,13 +92,20 @@ func get_battle(room_id: String) -> BattleState:
 ## smuggle in another command.
 func challenge(user: String, format_id: String) -> void:
 	var userid := PSParser.to_id(user)
-	if userid.is_empty() or not Connection.signed_in:
+	if userid.is_empty():
+		return
+	if not Connection.signed_in:
+		_pending_challenge = [userid, format_id]
+		EventBus.sign_in_requested.emit()
 		return
 	Connection.send("", "/utm null")
 	Connection.send("", "/challenge %s, %s" % [userid, PSParser.to_id(format_id)])
 
 
 func accept_challenge(user: String) -> void:
+	# The ladder search would go on and could start a second battle.
+	if not searching.is_empty():
+		cancel_search()
 	Connection.send("", "/utm null")
 	Connection.send("", "/accept " + PSParser.to_id(user))
 
@@ -102,8 +119,8 @@ func cancel_challenge(user: String) -> void:
 
 
 ## Asks for the signed-in user's ladder ratings (server setting "ratings"); they arrive as
-## EventBus.ratings_changed.
-func request_ratings() -> void:
+## EventBus.ratings_changed. `fresh`: skip the cache (right after a rated battle).
+func request_ratings(fresh := false) -> void:
 	if not Connection.signed_in:
 		return
 	var userid := PSParser.to_id(Connection.username)
@@ -114,7 +131,7 @@ func request_ratings() -> void:
 		return
 	if AppConfig.has_cli("no-data-fetch"):
 		return
-	var bytes := await _ratings_cache.fetch(source % userid, RATINGS_MAX_AGE)
+	var bytes := await _ratings_cache.fetch(source % userid, 0 if fresh else RATINGS_MAX_AGE)
 	if not bytes.is_empty() and Connection.signed_in and PSParser.to_id(Connection.username) == userid:
 		ratings = parse_ratings_json(bytes.get_string_from_utf8())
 		EventBus.ratings_changed.emit()
@@ -406,6 +423,25 @@ func _on_connection_state_changed(state: int) -> void:
 	if state != Connection.State.CONNECTED and not challenges.is_empty():
 		challenges.clear()
 		EventBus.challenges_changed.emit()
+	if state != Connection.State.CONNECTED:
+		_clear_ratings()
+
+
+func _clear_ratings() -> void:
+	_awaiting_rank = ""
+	if not ratings.is_empty():
+		ratings = {}
+		EventBus.ratings_changed.emit()
+
+
+## True unless the server provides the team: a format that isn't known (custom rules such as
+## "gen9ou@@@-Swagger") counts as needing one.
+static func format_needs_team(formats: Array[Dictionary], format: String) -> bool:
+	var format_id := PSParser.to_id(format.get_slice("@@@", 0))
+	for known in formats:
+		if known["id"] == format_id:
+			return not known["preset_team"] or format.contains("@@@")
+	return true
 
 
 ## |updatesearch|{"searching": [...], "games": {"battle-...": "[Gen 9] Random Battle", ...}}

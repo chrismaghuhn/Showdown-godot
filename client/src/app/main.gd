@@ -68,6 +68,7 @@ func _ready() -> void:
 	EventBus.battle_attention_changed.connect(_update_battle_tab)
 	EventBus.room_left.connect(_on_room_left)
 	EventBus.join_failed.connect(_on_join_failed)
+	EventBus.popup.connect(_on_server_popup)
 	EventBus.plugin_paused.connect(_on_plugin_paused)
 	EventBus.connection_state_changed.connect(func(_s: int) -> void: _refresh_header())
 	tabs.tab_selected.connect(show_screen)
@@ -408,6 +409,17 @@ func _on_room_left(room_id: String) -> void:
 			battle.expired = true
 			battle.awaiting_choice = false
 			tabs.update_tab(id, battle_tab_spec(battle))
+
+
+## The server's |popup| (e.g. "The user 'x' was not found." after a challenge) as a toast; it
+## used to reach only the developer console. Plain text only.
+func _on_server_popup(text: String) -> void:
+	var plain := text.trim_prefix("|html|")
+	if plain != text:
+		plain = RegEx.create_from_string("<[^>]*>").sub(plain, " ", true).strip_edges()
+	if plain.is_empty():
+		return
+	EventBus.toast_requested.emit({"event": "popup", "title": tr("Message from the server"), "body": plain})
 
 
 func _on_join_failed(room_id: String, reason: String) -> void:

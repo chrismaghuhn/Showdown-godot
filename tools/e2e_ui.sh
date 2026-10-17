@@ -17,11 +17,13 @@ if [ ${#FLOWS[@]} -eq 0 ]; then
 fi
 
 STATUS=0
+SETTINGS_DIR="$(mktemp -d)"
+trap 'rm -rf "$SETTINGS_DIR"' EXIT
 for flow in "${FLOWS[@]}"; do
   LOG="$(mktemp)"
   echo "--- $flow"
   "$GODOT" --headless --path "$CLIENT_DIR" -s res://tests/e2e/run.gd -- --no-data-fetch --screen=start --e2e="$flow" \
-    --settings-file="$(mktemp -d)/settings.cfg" \
+    --settings-file="$SETTINGS_DIR/$flow-settings.cfg" \
     >"$LOG" 2>&1 || STATUS=1
   grep -E "\[e2e\]|ERROR" "$LOG" || true
   if grep -qE "^(SCRIPT )?ERROR" "$LOG"; then
