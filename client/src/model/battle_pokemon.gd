@@ -17,9 +17,13 @@ var boosts := {}
 var moves := PackedStringArray()
 ## Moves seen in battle (names), mainly for the opponent.
 var revealed_moves := PackedStringArray()
+## Moves it used since its last switch-in (for |replace|: they were the revealed Pokémon's).
+var moves_since_switch := PackedStringArray()
 ## Item and ability: from |request| (ids) for own Pokémon, from protocol (names) once revealed.
 var item := ""
 var ability := ""
+## Its own ability while it has a copied one (Trace, Receiver); "" otherwise.
+var base_ability := ""
 ## The item it lost last (eaten, used up, knocked off); its effect doesn't reveal it again.
 var prev_item := ""
 ## Tera type once terastallized ("" = not terastallized).
@@ -93,25 +97,44 @@ func clear_boosts(direction: int) -> void:
 
 
 ## |replace|: this Pokémon was in battle disguised as `disguise` (Illusion). It takes over what
-## happened in the slot (HP and status too unless `with_hp` is false); the disguise goes back to
-## how it was before it "switched in".
-func take_over_from(disguise: BattlePokemon, with_hp := true) -> void:
-	if with_hp:
+## happened in the slot, and what was revealed meanwhile; for our own side (`own`) HP, status and
+## reveals are exact from |request| already. The disguise goes back to how it was before it
+## "switched in".
+func take_over_from(disguise: BattlePokemon, own := false) -> void:
+	var before := disguise.before_switch
+	if not own:
 		hp = disguise.hp
 		max_hp = disguise.max_hp
 		status = disguise.status
 		fainted = disguise.fainted
+		for move_name in disguise.moves_since_switch:
+			reveal_move(move_name)
+		disguise.revealed_moves = disguise.revealed_moves.slice(0, int(before.get("moves", disguise.revealed_moves.size())))
+		disguise.moves_since_switch = PackedStringArray()
+		if disguise.item != str(before.get("item", disguise.item)):
+			item = disguise.item
+			disguise.item = str(before["item"])
+		if disguise.prev_item != str(before.get("prev_item", disguise.prev_item)):
+			prev_item = disguise.prev_item
+			disguise.prev_item = str(before["prev_item"])
+		if disguise.ability != str(before.get("ability", disguise.ability)):
+			ability = disguise.ability
+			disguise.ability = str(before["ability"])
 	boosts = disguise.boosts.duplicate()
 	volatiles = disguise.volatiles.duplicate()
 	if not disguise.tera_type.is_empty():
 		tera_type = disguise.tera_type
 		disguise.tera_type = ""
-	disguise.max_hp = int(disguise.before_switch.get("max_hp", disguise.max_hp))
-	disguise.hp = int(disguise.before_switch.get("hp", disguise.max_hp))
-	disguise.status = str(disguise.before_switch.get("status", ""))
-	disguise.fainted = bool(disguise.before_switch.get("fainted", false))
+	disguise.max_hp = int(before.get("max_hp", disguise.max_hp))
+	disguise.hp = int(before.get("hp", disguise.max_hp))
+	disguise.status = str(before.get("status", ""))
+	disguise.fainted = bool(before.get("fainted", false))
 
 
 func reveal_move(move_name: String) -> void:
-	if not move_name.is_empty() and not move_name in revealed_moves:
+	if move_name.is_empty():
+		return
+	if not move_name in revealed_moves:
 		revealed_moves.append(move_name)
+	if not move_name in moves_since_switch:
+		moves_since_switch.append(move_name)

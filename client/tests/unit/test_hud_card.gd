@@ -74,3 +74,17 @@ func test_condition_row_hides_with_the_last_condition() -> void:
 	assert_eq(card._conditions.get_child_count(), 0, "no chips left")
 	assert_eq(card._boosts.get_child_count(), 0, "no boost chips left")
 	card.free()
+
+
+func test_tailwind_chip_counts_four_turns() -> void:
+	var card := HudCard.new(true)
+	Engine.get_main_loop().root.add_child(card)
+	var battle := BattleState.new("battle-test")
+	for line in ["|gen|9", "|turn|3", "|switch|p1a: Corv|Corviknight|100/100", "|-sidestart|p1: Ash|move: Tailwind"]:
+		battle.apply(PSParser.parse_line("battle-test", line))
+	var side := battle.side("p1")
+	card.show_pokemon(side.active_pokemon(), side, battle, null)
+	var chip: ConditionChip = card._conditions.get_child(0)
+	assert_eq(chip._label.text, "Tailwind", "Tailwind chip")
+	assert_eq(chip._count.text, "4", "Tailwind lasts 4 turns")
+	card.free()

@@ -72,3 +72,47 @@ func test_effectiveness() -> void:
 	assert_eq(dex.effectiveness("Normal", PackedStringArray(["Ghost"])), 0.0, "ghost immune to normal")
 	assert_eq(dex.effectiveness("Fire", PackedStringArray(["Water", "Grass"])), 1.0, "cancels out")
 	assert_eq(dex.effectiveness("Fire", PackedStringArray(["Unknown"])), 1.0, "unknown type neutral")
+
+
+func test_cosmetic_formes_inherit_from_the_base_species() -> void:
+	var pokedex := {
+		"minior": {"num": 774, "name": "Minior", "baseForme": "Red", "types": ["Rock", "Flying"],
+			"baseStats": {"hp": 60, "atk": 100, "def": 60, "spa": 100, "spd": 60, "spe": 120},
+			"abilities": {"0": "Shields Down"}, "weightkg": 0.3, "tier": "ZU"},
+		"miniororange": {"isCosmeticForme": true, "name": "Minior-Orange", "baseSpecies": "Minior",
+			"forme": "Orange", "color": "Red"},
+	}
+	var dex := Dex.from_sources(pokedex, {}, {}, {}, {})
+	var orange := dex.get_species("Minior-Orange")
+	assert_eq(orange.name, "Minior-Orange", "own name")
+	assert_eq(orange.forme, "Orange", "own forme")
+	assert_eq(orange.types, PackedStringArray(["Rock", "Flying"]), "types from the base species")
+	assert_eq(orange.base_stats["spe"], 120, "stats from the base species")
+	assert_eq(orange.abilities["0"], "Shields Down", "abilities from the base species")
+	assert_eq(orange.num, 774, "dex number from the base species")
+	assert_eq(orange.sprite_id(), "minior-orange", "sprite of the cosmetic forme")
+	assert_eq(dex.get_species("Minior").types, PackedStringArray(["Rock", "Flying"]), "base unchanged")
+	assert_true(not orange.raw.has("cosmeticFormes"), "the base's forme lists aren't copied")
+
+
+func test_cosmetic_formes_listed_only_by_their_base() -> void:
+	var pokedex := {
+		"furfrou": {"num": 676, "name": "Furfrou", "baseForme": "Natural", "types": ["Normal"],
+			"baseStats": {"hp": 75, "atk": 80, "def": 60, "spa": 65, "spd": 90, "spe": 102},
+			"abilities": {"0": "Fur Coat"}, "cosmeticFormes": ["Furfrou-La Reine", "Furfrou-Heart"]},
+		"flabebe": {"num": 669, "name": "Flabébé", "types": ["Fairy"], "cosmeticFormes": ["Flabébé-Blue"]},
+		"vivillonpolar": {"isCosmeticForme": true, "name": "Vivillon-Polar", "baseSpecies": "Vivillon",
+			"forme": "Polar"},
+	}
+	var dex := Dex.from_sources(pokedex, {}, {}, {}, {})
+	var reine := dex.get_species("Furfrou-La Reine")
+	assert_true(reine != null, "listed forme exists")
+	assert_eq(reine.name, "Furfrou-La Reine", "name")
+	assert_eq(reine.forme, "La Reine", "forme")
+	assert_eq(reine.types, PackedStringArray(["Normal"]), "types from the base species")
+	assert_eq(reine.base_stats["spe"], 102, "stats from the base species")
+	assert_eq(reine.sprite_id(), "furfrou-lareine", "sprite id")
+	assert_eq(dex.get_species("Flabébé-Blue").sprite_id(), "flabebe-blue", "sprite id without accents")
+	assert_true(dex.get_species("Flabébé") == dex.species["flabebe"], "Flabébé by name")
+	var polar := dex.get_species("Vivillon-Polar")
+	assert_true(polar != null and polar.types.is_empty(), "a forme whose base is missing still loads")

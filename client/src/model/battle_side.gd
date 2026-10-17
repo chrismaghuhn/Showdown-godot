@@ -33,6 +33,10 @@ func set_active(slot: int, mon: BattlePokemon) -> void:
 		previous.active = false
 		previous.boosts.clear()
 		previous.volatiles.clear()
+		# A copied ability (Trace) ends on switch-out.
+		if not previous.base_ability.is_empty():
+			previous.ability = previous.base_ability
+			previous.base_ability = ""
 	mon.active = true
 	active[slot] = mon
 
