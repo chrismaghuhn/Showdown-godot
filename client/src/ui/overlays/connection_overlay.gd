@@ -7,7 +7,9 @@ extends Control
 
 const DEFAULT_SERVER := "official"
 
-var _ui := {"servers_open": false, "sign_in_open": false, "dismissed": false}
+## quiet: connecting in the background at launch - no modal card until the user asks or a
+## sign-in needs them (the header shows the status).
+var _ui := {"servers_open": false, "sign_in_open": false, "dismissed": false, "quiet": false}
 var _card_id := &""
 var _card: Control
 var _scrim := PanelContainer.new()
@@ -59,25 +61,34 @@ func _ready() -> void:
 	add_child(ticker)
 	_refresh()
 	if should_auto_connect():
-		_connect.call_deferred(str(AppConfig.get_setting("connection", "server", "")))
+		_connect.call_deferred(str(AppConfig.get_setting("connection", "server", "")), true)
 
 
-## "Stay signed in" connects to the last server on launch - but not in headless runs, dev
-## automation (--server, --screenshot, --app-state) or with --offline.
+## "Stay signed in" with a saved session or name connects to the last server on launch, in
+## the background. Not in headless runs, dev automation (--server, --screenshot,
+## --app-state) or with --offline.
 static func should_auto_connect() -> bool:
-	if not Connection.stay_signed_in or str(AppConfig.get_setting("connection", "server", "")).is_empty():
-		return false
 	if DisplayServer.get_name() == "headless":
 		return false
 	for flag in ["server", "screenshot", "app-state", "offline"]:
 		if AppConfig.has_cli(flag):
 			return false
-	return true
+	var server_id := str(AppConfig.get_setting("connection", "server", ""))
+	var api := str(AppConfig.get_server(server_id).get("login", "none"))
+	var has_session := api != "none" and not SessionStore.load_cookie(api).is_empty()
+	var has_name := not str(AppConfig.get_setting("account", "username", "")).is_empty()
+	return wants_auto_connect(Connection.stay_signed_in, server_id, has_session or has_name)
+
+
+## There's something to sign in with: a session cookie or a remembered name.
+static func wants_auto_connect(stay_signed_in: bool, server_id: String, has_saved_sign_in: bool) -> bool:
+	return stay_signed_in and not AppConfig.get_server(server_id).is_empty() and has_saved_sign_in
 
 
 ## Opens the next step: connect when offline, else the sign-in card.
 func open_sign_in() -> void:
 	_ui["dismissed"] = false
+	_ui["quiet"] = false
 	match Connection.state:
 		Connection.State.DISCONNECTED:
 			_connect(str(AppConfig.get_setting("connection", "server", DEFAULT_SERVER)))
@@ -112,6 +123,8 @@ func _on_state_changed(state: int) -> void:
 		_ui["dismissed"] = false
 		_ui["sign_in_open"] = false
 		_error = ""
+	if state == Connection.State.CONNECTED and Connection.signed_in:
+		_ui["quiet"] = false
 	_refresh()
 
 
@@ -240,9 +253,10 @@ func _build_gave_up(status: Dictionary) -> Control:
 
 # --- Actions ----------------------------------------------------------------------------------
 
-func _connect(server_id: String) -> void:
+func _connect(server_id: String, quiet := false) -> void:
 	if AppConfig.get_server(server_id).is_empty():
 		server_id = DEFAULT_SERVER
+	_ui["quiet"] = quiet
 	AppConfig.set_setting("connection", "server", server_id)
 	_preview = {}
 	Connection.connect_to_server(server_id)

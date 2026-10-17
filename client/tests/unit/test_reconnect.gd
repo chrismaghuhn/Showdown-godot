@@ -108,3 +108,11 @@ func test_plugin_error_paths() -> void:
 	assert_true(Plugins.is_inside(ProjectSettings.globalize_path("user://plugins/calc/main.gd"), "user://plugins/calc"),
 		"absolute path from a backtrace")
 	assert_eq(Plugins.plugin_for_paths(PackedStringArray(["res://src/app/main.gd", ""])), "", "no plugin")
+
+
+func test_gone_battle_on_screen_reads_as_over() -> void:
+	_feed(">battle-gen9randombattle-14\n|init|battle\n|turn|2")
+	var shown := Rooms.get_battle("battle-gen9randombattle-14")
+	EventBus.reconnected.emit()
+	_feed(">battle-gen9randombattle-14\n|noinit|nonexistent|The room does not exist.")
+	assert_true(shown.ended, "the state a screen still holds is marked over")

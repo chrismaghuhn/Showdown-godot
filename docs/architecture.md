@@ -54,7 +54,9 @@ scheduled). States are only ever appended, plugins see the number.
   it's `/trn name`, otherwise `LoginClient` gets an assertion (`login` with a password,
   `getassertion` without one, `upkeep` with the session cookie). The password only lives for
   that one request. "Stay signed in" keeps the name (settings) and the login server's `sid`
-  cookie (`SessionStore`, `user://session.cfg`, owner-only) - never the password.
+  cookie (`SessionStore`, `user://session.cfg`, owner-only) - never the password. With it on
+  and something saved to sign in with, the app connects to the last server on launch, in
+  the background (no modal card; `--offline` skips it).
 - **After a reconnect** the client signs in again as `session_name` (cookie or unregistered
   name, no password), retrying a few times while the server still holds the old connection
   (`|nametaken|`), then emits `EventBus.reconnected`. The server rejoins a returning user's

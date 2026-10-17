@@ -66,3 +66,22 @@ func test_texts() -> void:
 	assert_eq(DataProgressPanel.format_bytes(5300), "5 KB", "KB")
 	assert_eq(DataProgressPanel.files_line([{"label": "Pokédex", "state": "done"}, {"label": "Moves", "state": "loading"}]),
 		"Pokédex ✓ · Moves", "files")
+
+
+func test_quiet_background_connect() -> void:
+	var quiet := NONE.merged({"quiet": true}, true)
+	assert_eq(ConnectionFlow.card_for(_status({"state": Connection.State.CONNECTING}), quiet), &"", "no modal card at launch")
+	assert_eq(ConnectionFlow.card_for(_status({"state": Connection.State.DISCONNECTED, "gave_up": true}), quiet), &"",
+		"offline at launch: the app stays usable")
+	assert_eq(ConnectionFlow.card_for(_status({}), quiet), &"", "no sign-in card unasked")
+	assert_eq(ConnectionFlow.card_for(_status({}), quiet.merged({"sign_in_open": true}, true)), &"sign_in",
+		"a password prompt still opens the card")
+	assert_eq(ConnectionFlow.status_label(_status({"session_up": false}))["text"], "Connecting…",
+		"header: socket open, server not greeted yet")
+
+
+func test_auto_connect_needs_something_to_sign_in_with() -> void:
+	assert_true(ConnectionOverlay.wants_auto_connect(true, "local", true), "stay signed in with a saved name or session")
+	assert_true(not ConnectionOverlay.wants_auto_connect(true, "local", false), "signed out: nothing to sign in with")
+	assert_true(not ConnectionOverlay.wants_auto_connect(false, "local", true), "not staying signed in")
+	assert_true(not ConnectionOverlay.wants_auto_connect(true, "", true), "never connected before")

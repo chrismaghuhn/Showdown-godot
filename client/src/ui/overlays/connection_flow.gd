@@ -5,7 +5,8 @@ extends RefCounted
 ##
 ## A first connection gets the modal card; a connection that drops after it worked gets the
 ## banner, so battles stay visible while it reconnects.
-## ui: {"servers_open": bool, "sign_in_open": bool, "dismissed": bool}
+## ui: {"servers_open": bool, "sign_in_open": bool, "dismissed": bool, "quiet": bool}
+## ("quiet": a background connect at launch - only prompts show a card).
 
 
 ## The modal card: &"connecting", &"servers", &"sign_in", &"gave_up" or &"" (none).
@@ -17,17 +18,18 @@ static func card_for(status: Dictionary, ui: Dictionary) -> StringName:
 	# The socket is open but the server hasn't greeted us (|challstr|) yet: still connecting.
 	if state == Connection.State.CONNECTED and not status.get("session_up", true):
 		state = Connection.State.CONNECTING
+	var quiet: bool = ui.get("quiet", false)
 	match state:
 		Connection.State.CONNECTING, Connection.State.WAITING:
-			return &"" if reconnecting else &"connecting"
+			return &"" if reconnecting or quiet else &"connecting"
 		Connection.State.DISCONNECTED:
-			return &"gave_up" if status.get("gave_up", false) and not reconnecting else &""
+			return &"gave_up" if status.get("gave_up", false) and not reconnecting and not quiet else &""
 		Connection.State.CONNECTED:
 			if reconnecting or status.get("signed_in", false):
 				return &""
 			if ui.get("sign_in_open", false):
 				return &"sign_in"
-			if status.get("signing_in", false) or ui.get("dismissed", false):
+			if status.get("signing_in", false) or ui.get("dismissed", false) or quiet:
 				return &""
 			return &"sign_in"
 	return &""
@@ -68,7 +70,7 @@ static func status_label(status: Dictionary) -> Dictionary:
 	var state := int(status.get("state", 0))
 	if status.get("reconnecting", false) or state == Connection.State.DISCONNECTED:
 		return {"text": _t("Offline"), "color_token": "color.warning.text"}
-	if state != Connection.State.CONNECTED:
+	if state != Connection.State.CONNECTED or not status.get("session_up", true):
 		return {"text": _t("Connecting…"), "color_token": "color.text.muted"}
 	if status.get("signed_in", false):
 		return {"text": str(status.get("username", "")), "color_token": "color.success.text"}

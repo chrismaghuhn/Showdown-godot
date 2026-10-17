@@ -62,6 +62,9 @@ func _ready() -> void:
 	EventBus.chat_message.connect(_on_chat_message)
 	EventBus.plugin_panel_added.connect(_on_plugin_panel_added)
 	EventBus.plugin_paused.connect(_on_plugin_paused)
+	EventBus.room_left.connect(func(room_id: String) -> void:
+		if battle != null and battle.room_id == room_id:
+			_queue_refresh())
 	EventBus.data_loaded.connect(func(_dex: Dex) -> void: _queue_refresh())
 	for entry in Plugins.get_panel_entries(&"sidebar"):
 		_add_plugin_panel(entry["plugin_id"], entry["control"])

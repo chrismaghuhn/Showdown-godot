@@ -23,6 +23,7 @@ var _tab_ids: Array[StringName] = []
 var _syncing_tabs := false
 ## The battle the battle tab shows (restored battles don't take its place).
 var _tab_room := ""
+var _tab_battle: BattleState
 var connection_overlay := ConnectionOverlay.new()
 var connection_banner := ConnectionBanner.new()
 var data_panel := DataProgressPanel.new()
@@ -34,6 +35,9 @@ func _ready() -> void:
 	EventBus.battle_started.connect(_on_battle_started)
 	EventBus.battle_updated.connect(_on_battle_updated)
 	EventBus.plugin_paused.connect(_on_plugin_paused)
+	EventBus.room_left.connect(func(room_id: String) -> void:
+		if room_id == _tab_room and _tab_battle != null:
+			_update_battle_tab(_tab_battle))
 	show_screen(StringName(AppConfig.cli("screen", "dev-console")))
 	add_child(DevAutomation.new())
 
@@ -120,6 +124,7 @@ func _on_battle_started(battle: BattleState) -> void:
 	if battle.restored and not _tab_room.is_empty() and battle.room_id != _tab_room:
 		return
 	_tab_room = battle.room_id
+	_tab_battle = battle
 	if not battle.restored:
 		show_screen(&"battle")
 	elif not &"battle" in _tab_ids:
